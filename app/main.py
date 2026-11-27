@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import db, runlog, worker
-from .config import cfg
+from .config import DEV_SECRET_KEY, cfg
 from .mock import MockClient
 from .tesla import AuthExpired, TeslaClient
 
@@ -29,6 +29,9 @@ OPEN_PATHS = ("/healthz", "/.well-known/", "/ingest/")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not cfg.mock and (cfg.secret_key == DEV_SECRET_KEY or len(cfg.secret_key) < 16):
+        raise RuntimeError("BH_SECRET_KEY must be set to a random value of at least 16 characters "
+                           "(it signs sessions and encrypts stored tokens). Only BH_MOCK=1 runs without it.")
     db.init()
     task = asyncio.create_task(worker.run(client))
     yield

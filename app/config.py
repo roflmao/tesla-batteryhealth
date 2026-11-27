@@ -7,11 +7,14 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(f"BH_{name}", default)
 
 
+DEV_SECRET_KEY = "dev-only-change-me"   # public; only accepted in mock mode
+
+
 @dataclass(frozen=True)
 class Config:
     mock: bool = field(default_factory=lambda: _env("MOCK", "0") == "1")
     db_path: str = field(default_factory=lambda: _env("DB_PATH", "batteryhealth.db"))
-    secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", "dev-only-change-me"))
+    secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", DEV_SECRET_KEY))
     basic_auth: str = field(default_factory=lambda: _env("BASIC_AUTH"))  # "user:pass" or empty
 
     # Tesla developer application (developer.tesla.com)

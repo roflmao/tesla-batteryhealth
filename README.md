@@ -163,7 +163,7 @@ car becomes a regression test. `mock-model3.jsonl` is a run of the simulator.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `BH_SECRET_KEY` | insecure dev value | Signs sessions and encrypts stored tokens. **Must be set**; changing it later makes stored tokens unreadable. |
+| `BH_SECRET_KEY` | none | Signs sessions and encrypts stored tokens. **Required** (at least 16 characters) unless `BH_MOCK=1`; the app refuses to start without it. Changing it later makes stored tokens unreadable. |
 | `BH_TESLA_CLIENT_ID`, `BH_TESLA_CLIENT_SECRET` | – | Tesla developer application. |
 | `BH_TESLA_REDIRECT_URI` | `http://localhost:8000/auth/callback` | Must match the application; an `https://` value also makes the session cookie secure-only. |
 | `BH_TESLA_FLEET_BASE` | EU Fleet API | OAuth audience and fallback regional base URL. |
@@ -197,9 +197,6 @@ car becomes a regression test. `mock-model3.jsonl` is a run of the simulator.
   contact with real data: the `recent_alerts` response shape, units of
   `IsolationResistance` and the temperature signals, and whether `users/region`
   works with your scopes.
-- **The app starts without `BH_SECRET_KEY`** and then uses a value that is
-  public in this repository, which lets anyone forge a session for any stored
-  account. Always set it.
 - **Each Tesla sign-in creates a new account record.** After signing out or
   when the session expires (14 days), earlier assessments are no longer listed
   for that owner, although they remain in the database.
