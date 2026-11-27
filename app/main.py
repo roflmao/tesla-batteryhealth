@@ -3,6 +3,7 @@ import asyncio
 import base64
 import hmac
 import json
+import math
 import os
 import secrets
 import time
@@ -124,13 +125,27 @@ async def start(request: Request, vin: str = Form(...), name: str = Form(""), re
     acc = account_id(request)
     if not acc:
         raise HTTPException(401)
-    if ref_range_km < 100 or ref_range_km > 1000:
+    if not 100 <= ref_range_km <= 1000:        # written this way so NaN is rejected too
         raise HTTPException(400, "Reference range must be 100-1000 km")
+    cap = None
+    if ref_capacity_kwh.strip():
+        try:
+            cap = float(ref_capacity_kwh.replace(",", "."))
+        except ValueError:
+            cap = math.nan
+        if not 10 <= cap <= 250:
+            raise HTTPException(400, "Capacity when new must be 10-250 kWh")
     if vin not in {v.get("vin") for v in await client.vehicles(acc)}:
         raise HTTPException(403, "VIN is not on this Tesla account")
-    cap = float(ref_capacity_kwh.replace(",", ".")) if ref_capacity_kwh.strip() else None
     now = int(time.time())
     with db.conn() as c:
+        # One running assessment per car: a second one would double the billable polling.
+        # No await between this check and the insert, so two submissions cannot both pass.
+        dup = c.execute("SELECT id, account_id FROM assessments WHERE vin=? AND status='running'", (vin,)).fetchone()
+        if dup and dup["account_id"] == acc:
+            return RedirectResponse(f"/assessments/{dup['id']}", 303)
+        if dup:
+            raise HTTPException(409, "An assessment is already running for this vehicle")
         cur = c.execute(
             "INSERT INTO assessments(account_id, vin, name, ref_range_km, ref_capacity_kwh, started_at, ends_at) VALUES (?,?,?,?,?,?,?)",
             (acc, vin, name, ref_range_km, cap, now, now + cfg.window_seconds))
