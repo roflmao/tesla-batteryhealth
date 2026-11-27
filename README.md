@@ -14,13 +14,15 @@ the built-in simulator, not a real car.
 ## How it works
 
 1. **Connect.** The vehicle owner signs in with Tesla (OAuth, scope
-   `vehicle_device_data`). Tokens are stored encrypted in SQLite.
+   `vehicle_device_data`). Tokens are stored encrypted in SQLite, one account
+   per Tesla user, and each user sees only their own assessments.
 
    ![Connect a Tesla account](examples/01-connect.png)
 
 2. **Start an assessment.** Pick the car and enter the rated range it showed at
    100 % when new (and, optionally, usable capacity when new). These reference
-   values are what state of health is measured against.
+   values are what state of health is measured against. A car can have one
+   running assessment per user at a time.
 
    ![Start an assessment](examples/02-start-assessment.png)
 
@@ -197,9 +199,10 @@ car becomes a regression test. `mock-model3.jsonl` is a run of the simulator.
   contact with real data: the `recent_alerts` response shape, units of
   `IsolationResistance` and the temperature signals, and whether `users/region`
   works with your scopes.
-- **Each Tesla sign-in creates a new account record.** After signing out or
-  when the session expires (14 days), earlier assessments are no longer listed
-  for that owner, although they remain in the database.
+- **Accounts are keyed on the Tesla user id** read from the sign-in's
+  `id_token`. If Tesla's token response carries no `id_token`, each sign-in
+  becomes a new account and earlier assessments are not listed after signing in
+  again. Not yet confirmed against a real Tesla account.
 - **No retention.** Telemetry rows, samples, tokens and run logs are kept until deleted by hand.
 - `/ingest/telemetry` answers 500 rather than 400 on a malformed body.
 

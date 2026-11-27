@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
+from app import db, main, tesla
 from app.main import app
 from app.mock import VIN
 
@@ -44,12 +44,35 @@ def test_second_start_reuses_running_assessment(client):
         assert conn.execute("SELECT count(*) FROM assessments WHERE status='running'").fetchone()[0] == 1
 
 
-def test_new_sign_in_takes_over_the_running_assessment(client):
+def test_other_reference_values_while_running_are_refused(client):
+    assert start(client, ref_capacity_kwh="75").status_code == 303
+    assert start(client, ref_capacity_kwh="60").status_code == 409
+    assert start(client, ref_range_km="450", ref_capacity_kwh="75").status_code == 409
+
+
+def test_signing_in_again_keeps_the_same_account(client):
     first = start(client)
-    with TestClient(app) as again:                     # same owner, new sign-in = new account row
+    with TestClient(app) as again:
         again.get("/auth/login")
-        second = start(again)
-        assert second.status_code == 303 and second.headers["location"] == first.headers["location"]
         assert again.get(first.headers["location"]).status_code == 200
+        assert start(again).headers["location"] == first.headers["location"]
     with db.conn() as conn:
-        assert conn.execute("SELECT count(*) FROM assessments WHERE status='running'").fetchone()[0] == 1
+        assert conn.execute("SELECT count(*) FROM accounts WHERE tesla_sub='mock-mock'").fetchone()[0] == 1
+
+
+def test_another_tesla_user_gets_their_own_assessment(client, monkeypatch):
+    first = start(client)
+    exchange = main.client.exchange_code
+    monkeypatch.setattr(main.client, "exchange_code", lambda code: exchange("someone-else"))
+    with TestClient(app) as other:
+        other.get("/auth/login")
+        assert other.get(first.headers["location"]).status_code == 404
+        second = start(other)
+        assert second.status_code == 303 and second.headers["location"] != first.headers["location"]
+    assert client.get(second.headers["location"]).status_code == 404
+    assert client.get(first.headers["location"]).status_code == 200
+
+
+def test_token_subject_tolerates_missing_or_broken_id_token():
+    assert tesla.token_subject({}) is None
+    assert tesla.token_subject({"id_token": "not-a-jwt"}) is None

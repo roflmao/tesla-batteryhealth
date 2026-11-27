@@ -1,4 +1,7 @@
 """Simulated Tesla backend for BH_MOCK=1. Each vehicle_data call advances the car 15 minutes."""
+import base64
+import json
+
 from .tesla import VehicleUnavailable
 
 TRUE_CAPACITY_KWH = 68.4   # what the simulated pack really holds
@@ -14,7 +17,8 @@ class MockClient:
         return f"/auth/callback?code=mock&state={state}"
 
     async def exchange_code(self, code: str) -> dict:
-        return {"access_token": "mock", "refresh_token": "mock", "expires_in": 10**8}
+        claims = base64.urlsafe_b64encode(json.dumps({"sub": f"mock-{code}"}).encode()).decode().rstrip("=")
+        return {"access_token": "mock", "refresh_token": "mock", "expires_in": 10**8, "id_token": f"x.{claims}.x"}
 
     async def region_base(self, token: str) -> str:
         return "mock://"

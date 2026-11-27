@@ -1,5 +1,7 @@
 """Thin Tesla Fleet API client (OAuth third-party token flow + the few vehicle endpoints we need)."""
 import asyncio
+import base64
+import json
 import time
 from urllib.parse import urlencode
 
@@ -17,6 +19,19 @@ class VehicleUnavailable(Exception):
 
 class AuthExpired(Exception):
     """Refresh token no longer valid; the owner must log in again."""
+
+
+def token_subject(tok: dict) -> str | None:
+    """Tesla user id ("sub") from the id_token of a token response.
+
+    The signature is not checked, so only use this on a response received
+    directly from Tesla's token endpoint, never on a token a browser handed over.
+    """
+    try:
+        payload = tok["id_token"].split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("sub") or None
+    except Exception:
+        return None
 
 
 def parse_alerts(resp) -> list[dict]:

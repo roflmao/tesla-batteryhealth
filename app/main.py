@@ -18,7 +18,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import db, runlog, worker
 from .config import DEV_SECRET_KEY, cfg
 from .mock import MockClient
-from .tesla import AuthExpired, TeslaClient
+from .tesla import AuthExpired, TeslaClient, token_subject
 
 client = MockClient() if cfg.mock else TeslaClient()
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
@@ -109,7 +109,7 @@ async def callback(request: Request, code: str = "", state: str = "", error: str
         raise HTTPException(400, "Invalid OAuth state")
     tok = await client.exchange_code(code)
     base = await client.region_base(tok["access_token"])
-    request.session["account_id"] = db.save_tokens(None, base, tok)
+    request.session["account_id"] = db.save_tokens(None, base, tok, token_subject(tok))
     return RedirectResponse("/", 303)
 
 
@@ -141,13 +141,12 @@ async def start(request: Request, vin: str = Form(...), name: str = Form(""), re
     with db.conn() as c:
         # One running assessment per car: a second one would double the billable polling.
         # No await between this check and the insert, so two submissions cannot both pass.
-        dup = c.execute("SELECT id FROM assessments WHERE vin=? AND status='running'", (vin,)).fetchone()
+        dup = c.execute("SELECT * FROM assessments WHERE account_id=? AND vin=? AND status='running'", (acc, vin)).fetchone()
+        if dup and (dup["ref_range_km"], dup["ref_capacity_kwh"]) == (ref_range_km, cap):
+            return RedirectResponse(f"/assessments/{dup['id']}", 303)      # the form was submitted twice
         if dup:
-            # The caller has just been shown to hold this VIN at Tesla, so hand the run to their
-            # sign-in rather than refuse: every sign-in is a new account row, and a refusal would
-            # lock an owner who signed in again out of their own car until the window ends.
-            c.execute("UPDATE assessments SET account_id=? WHERE id=?", (acc, dup["id"]))
-            return RedirectResponse(f"/assessments/{dup['id']}", 303)
+            raise HTTPException(409, f"Assessment {dup['id']} is already running for this vehicle with other "
+                                     "reference values. Finish it before starting a new one.")
         cur = c.execute(
             "INSERT INTO assessments(account_id, vin, name, ref_range_km, ref_capacity_kwh, started_at, ends_at) VALUES (?,?,?,?,?,?,?)",
             (acc, vin, name, ref_range_km, cap, now, now + cfg.window_seconds))

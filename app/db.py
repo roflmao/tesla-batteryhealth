@@ -14,6 +14,7 @@ _fernet = Fernet(base64.urlsafe_b64encode(hashlib.sha256(cfg.secret_key.encode()
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
   id INTEGER PRIMARY KEY,
+  tesla_sub TEXT,                           -- Tesla user id; one account row per Tesla user
   base_url TEXT NOT NULL,
   access_token BLOB NOT NULL,
   refresh_token BLOB,
@@ -87,6 +88,9 @@ def conn():
 def init() -> None:
     with conn() as c:
         c.executescript(SCHEMA)
+        if "tesla_sub" not in {r["name"] for r in c.execute("PRAGMA table_info(accounts)")}:
+            c.execute("ALTER TABLE accounts ADD COLUMN tesla_sub TEXT")     # databases from before the column
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS accounts_sub ON accounts(tesla_sub) WHERE tesla_sub IS NOT NULL")
 
 
 def enc(s: str | None) -> bytes | None:
@@ -97,13 +101,19 @@ def dec(b: bytes | None) -> str | None:
     return _fernet.decrypt(b).decode() if b else None
 
 
-def save_tokens(account_id: int | None, base_url: str, tok: dict) -> int:
+def save_tokens(account_id: int | None, base_url: str, tok: dict, tesla_sub: str | None = None) -> int:
+    """Store tokens. account_id=None is a sign-in: the Tesla user's existing account is reused if there is one."""
     expires_at = int(time.time()) + int(tok.get("expires_in", 3600))
     with conn() as c:
+        if account_id is None and tesla_sub:
+            known = c.execute("SELECT id FROM accounts WHERE tesla_sub=?", (tesla_sub,)).fetchone()
+            if known:
+                account_id = known["id"]
+                c.execute("UPDATE accounts SET base_url=? WHERE id=?", (base_url, account_id))
         if account_id is None:
             cur = c.execute(
-                "INSERT INTO accounts(base_url, access_token, refresh_token, expires_at, created_at) VALUES (?,?,?,?,?)",
-                (base_url, enc(tok["access_token"]), enc(tok.get("refresh_token")), expires_at, int(time.time())),
+                "INSERT INTO accounts(tesla_sub, base_url, access_token, refresh_token, expires_at, created_at) VALUES (?,?,?,?,?,?)",
+                (tesla_sub, base_url, enc(tok["access_token"]), enc(tok.get("refresh_token")), expires_at, int(time.time())),
             )
             return cur.lastrowid
         c.execute(
