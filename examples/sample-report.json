@@ -1,0 +1,617 @@
+{
+  "id": 1,
+  "vin": "5YJ3MOCK0NF000001",
+  "status": "done",
+  "started_at": 1795815548,
+  "ends_at": 1795815588,
+  "report_id": "4E18 5227 59D7",
+  "vehicle": {
+    "model": "Model 3",
+    "year": 2022,
+    "plant": "Fremont, CA, USA",
+    "car_type": "model3",
+    "car_version": "2026.38.4 mock",
+    "trim": "74d",
+    "wheel_type": "Stiletto19"
+  },
+  "estimate": {
+    "samples_total": 39,
+    "samples_online": 37,
+    "range_samples_used": 33,
+    "range_min_soc_used": 50,
+    "full_range_km": 465.1,
+    "full_range_km_low": 462.5,
+    "full_range_km_high": 467.7,
+    "soh_range_pct": 91.7,
+    "soh_range_low": 91.2,
+    "soh_range_high": 92.2,
+    "session_soc_from": 42.0,
+    "session_soc_to": 90.0,
+    "session_energy_kwh": 33.11,
+    "capacity_kwh": 69.0,
+    "capacity_kwh_low": 67.6,
+    "capacity_kwh_high": 70.4,
+    "soh_charge_pct": 92.0,
+    "soh_pct": 91.7,
+    "confidence": "high",
+    "odometer_km": 98547,
+    "notes": []
+  },
+  "summary": {
+    "soh_pct": 91.3,
+    "soh_method": "BMS nominal full pack energy vs. capacity when new",
+    "telemetry": true
+  },
+  "metrics": [
+    {
+      "key": "soh",
+      "label": "State of Health (SoH)",
+      "group": "Battery performance & condition",
+      "value": "91.3 %",
+      "status": "ok",
+      "detail": "Method: BMS nominal full pack energy vs. capacity when new. Range method 91.7 % (91.2\u201392.2). Charge-session method 92.0 %."
+    },
+    {
+      "key": "capacity",
+      "label": "Battery Capacity",
+      "group": "Battery performance & condition",
+      "value": "68.5 kWh",
+      "status": "info",
+      "detail": "Nominal full pack energy reported by the BMS. When new: 75.0 kWh."
+    },
+    {
+      "key": "range",
+      "label": "Estimated Range",
+      "group": "Battery performance & condition",
+      "value": "465 km",
+      "status": "info",
+      "detail": "Rated range extrapolated to 100 % charge. When new: 507 km."
+    },
+    {
+      "key": "status",
+      "label": "Battery Status",
+      "group": "Battery performance & condition",
+      "value": "Fair",
+      "status": "watch",
+      "detail": "Confidence in the estimate: high. 1 recent BMS alert(s)."
+    },
+    {
+      "key": "fast_charge",
+      "label": "Fast Charge Percentage",
+      "group": "Advanced battery intelligence",
+      "value": "14 %",
+      "status": "ok",
+      "detail": "2310 kWh of 16878 kWh lifetime charging energy came from DC fast charging."
+    },
+    {
+      "key": "charge_limit",
+      "label": "Average Charge Limit",
+      "group": "Advanced battery intelligence",
+      "value": "90 %",
+      "status": "ok",
+      "detail": "Average of the limit set during the observation window only; the car does not expose its history."
+    },
+    {
+      "key": "temperature",
+      "label": "Battery Temperature",
+      "group": "Advanced battery intelligence",
+      "value": "19\u201328 \u00b0C",
+      "status": "ok",
+      "detail": "Largest difference between hottest and coldest module at one moment: 4.5 \u00b0C."
+    },
+    {
+      "key": "moisture",
+      "label": "Moisture Detection",
+      "group": "Advanced battery intelligence",
+      "value": "No indication",
+      "status": "ok",
+      "detail": "Indirect: based on high-voltage isolation resistance (min 3910, median 4000, unit as reported). A falling or unstable value can mean moisture ingress; it is not a moisture sensor."
+    },
+    {
+      "key": "cell_balance",
+      "label": "Cell Balance",
+      "group": "Advanced battery intelligence",
+      "value": "Balanced",
+      "status": "ok",
+      "detail": "Weakest brick sits 0.7 points below pack state of charge."
+    },
+    {
+      "key": "cell_spread",
+      "label": "Cell Voltage Spread",
+      "group": "Advanced battery intelligence",
+      "value": "12 mV",
+      "status": "ok",
+      "detail": "Median gap between highest and lowest brick; worst reading 12 mV over 37 readings."
+    },
+    {
+      "key": "consumption",
+      "label": "Energy Consumption",
+      "group": "Advanced battery intelligence",
+      "value": "162 Wh/km",
+      "status": "info",
+      "detail": "Lifetime average: total energy discharged from the pack divided by odometer (includes climate and standby use)."
+    },
+    {
+      "key": "charging",
+      "label": "Charging",
+      "group": "Advanced battery intelligence",
+      "value": "AC, peak 11 kW",
+      "status": "info",
+      "detail": "Observed in the window. 3-phase supply."
+    },
+    {
+      "key": "motor",
+      "label": "Motor Integrity",
+      "group": "Advanced battery intelligence",
+      "value": "No fault indicated",
+      "status": "ok",
+      "detail": "Peak stator temperature F 31 \u00b0C, R 34 \u00b0C. High-voltage interlock: HvilStatusOk. Indicators only; the API has no direct motor health value."
+    },
+    {
+      "key": "motor_leak",
+      "label": "Internal Motor Leakage",
+      "group": "Advanced battery intelligence",
+      "value": "No indication",
+      "status": "ok",
+      "detail": "Indirect: isolation resistance while driving is 103 % of the parked value. A large drop with the drive units energised points at the motor/inverter side."
+    },
+    {
+      "key": "cell_degradation",
+      "label": "Battery Cell Degradation",
+      "group": "Advanced battery intelligence",
+      "value": "Even",
+      "status": "ok",
+      "detail": "Brick 37 had the lowest voltage in 73 % of 37 readings."
+    },
+    {
+      "key": "bms_faults",
+      "label": "BMS Fault Codes",
+      "group": "Advanced battery intelligence",
+      "value": "1 BMS / 1 total",
+      "status": "watch",
+      "detail": "BMS_a066 (2026-11-27T07:12:00Z)"
+    }
+  ],
+  "energy": {
+    "used_kwh": 5.6,
+    "driving_kwh": 4.3,
+    "standing_kwh": 1.4,
+    "days": 0.0,
+    "regen_kwh": 0.8,
+    "lifetime_charged_kwh": 16878.0,
+    "lifetime_dc_kwh": 2310.0,
+    "lifetime_ac_kwh": 14568.0
+  },
+  "bricks": [
+    [
+      1795815548,
+      3.912,
+      3.9
+    ],
+    [
+      1795815549,
+      3.9219999999999997,
+      3.9099999999999997
+    ],
+    [
+      1795815552,
+      3.952,
+      3.94
+    ],
+    [
+      1795815553,
+      3.9619999999999997,
+      3.9499999999999997
+    ],
+    [
+      1795815554,
+      3.972,
+      3.96
+    ],
+    [
+      1795815556,
+      3.9819999999999998,
+      3.9699999999999998
+    ],
+    [
+      1795815557,
+      3.992,
+      3.98
+    ],
+    [
+      1795815558,
+      4.002,
+      3.9899999999999998
+    ],
+    [
+      1795815559,
+      4.012,
+      4.0
+    ],
+    [
+      1795815560,
+      4.022,
+      4.01
+    ],
+    [
+      1795815561,
+      4.032,
+      4.02
+    ],
+    [
+      1795815562,
+      4.042,
+      4.03
+    ],
+    [
+      1795815563,
+      4.052,
+      4.04
+    ],
+    [
+      1795815564,
+      4.062,
+      4.05
+    ],
+    [
+      1795815565,
+      4.072,
+      4.06
+    ],
+    [
+      1795815566,
+      4.082,
+      4.07
+    ],
+    [
+      1795815567,
+      4.092,
+      4.08
+    ],
+    [
+      1795815568,
+      4.102,
+      4.09
+    ],
+    [
+      1795815569,
+      4.112,
+      4.1
+    ],
+    [
+      1795815570,
+      4.122,
+      4.11
+    ],
+    [
+      1795815571,
+      4.132,
+      4.12
+    ],
+    [
+      1795815572,
+      4.142,
+      4.13
+    ],
+    [
+      1795815573,
+      4.152,
+      4.14
+    ],
+    [
+      1795815574,
+      4.162,
+      4.15
+    ],
+    [
+      1795815575,
+      4.172,
+      4.16
+    ],
+    [
+      1795815576,
+      4.182,
+      4.17
+    ],
+    [
+      1795815577,
+      4.192,
+      4.18
+    ],
+    [
+      1795815578,
+      4.202,
+      4.1899999999999995
+    ],
+    [
+      1795815579,
+      4.212,
+      4.2
+    ],
+    [
+      1795815580,
+      4.2219999999999995,
+      4.21
+    ],
+    [
+      1795815581,
+      4.232,
+      4.22
+    ],
+    [
+      1795815582,
+      4.242,
+      4.2299999999999995
+    ],
+    [
+      1795815583,
+      4.252,
+      4.24
+    ],
+    [
+      1795815584,
+      4.262,
+      4.25
+    ],
+    [
+      1795815585,
+      4.272,
+      4.26
+    ],
+    [
+      1795815586,
+      4.282,
+      4.27
+    ],
+    [
+      1795815587,
+      4.292,
+      4.28
+    ]
+  ],
+  "alerts": [
+    {
+      "name": "BMS_a066",
+      "time": "2026-11-27T07:12:00Z",
+      "audience": "service",
+      "text": "Maximum charge level and range may be reduced",
+      "bms": true
+    }
+  ],
+  "samples": [
+    {
+      "ts": 1795815548,
+      "state": "online",
+      "battery_level": 48.0,
+      "charging_state": "Disconnected"
+    },
+    {
+      "ts": 1795815549,
+      "state": "online",
+      "battery_level": 45.0,
+      "charging_state": "Disconnected"
+    },
+    {
+      "ts": 1795815550,
+      "state": "asleep",
+      "battery_level": null,
+      "charging_state": null
+    },
+    {
+      "ts": 1795815551,
+      "state": "asleep",
+      "battery_level": null,
+      "charging_state": null
+    },
+    {
+      "ts": 1795815552,
+      "state": "online",
+      "battery_level": 42.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815553,
+      "state": "online",
+      "battery_level": 46.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815554,
+      "state": "online",
+      "battery_level": 50.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815556,
+      "state": "online",
+      "battery_level": 54.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815557,
+      "state": "online",
+      "battery_level": 58.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815558,
+      "state": "online",
+      "battery_level": 62.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815559,
+      "state": "online",
+      "battery_level": 66.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815560,
+      "state": "online",
+      "battery_level": 70.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815561,
+      "state": "online",
+      "battery_level": 74.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815562,
+      "state": "online",
+      "battery_level": 78.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815563,
+      "state": "online",
+      "battery_level": 82.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815564,
+      "state": "online",
+      "battery_level": 86.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815565,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Charging"
+    },
+    {
+      "ts": 1795815566,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815567,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815568,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815569,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815570,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815571,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815572,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815573,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815574,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815575,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815576,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815577,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815578,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815579,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815580,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815581,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815582,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815583,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815584,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815585,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815586,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    },
+    {
+      "ts": 1795815587,
+      "state": "online",
+      "battery_level": 90.0,
+      "charging_state": "Complete"
+    }
+  ]
+}

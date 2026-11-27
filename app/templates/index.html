@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block actions %}{% if connected %}<form method="post" action="/auth/logout"><button class="sec">Disconnect</button></form>{% endif %}{% endblock %}
+{% block body %}
+{% if cfg.mock %}<div class="banner">Mock mode: data comes from a simulated car, not from Tesla.</div>{% endif %}
+{% if error %}<div class="banner">{{ error }}</div>{% endif %}
+{% if not connected %}
+<div class="card">
+  <h2>Connect a Tesla account</h2>
+  <p>The vehicle owner signs in with Tesla and grants read access to vehicle data. The tool then observes the car for
+     {{ (cfg.window_seconds / 3600)|round(1) }} hours and produces a battery health report. Nothing is installed in the car and no commands are sent to it.</p>
+  <a class="btn" href="/auth/login">Sign in with Tesla</a>
+</div>
+{% else %}
+<div class="card">
+  <h2>Start an assessment</h2>
+  {% if vehicles %}
+  <form method="post" action="/assessments">
+    <div class="grid">
+      <div><label>Vehicle</label><select name="vin">{% for v in vehicles %}<option value="{{ v.vin }}">{{ v.display_name or v.vin }} · {{ v.vin }} ({{ v.state }})</option>{% endfor %}</select></div>
+      <div><label>Label (optional)</label><input name="name" placeholder="Plate or customer ref"></div>
+      <div><label>Rated range when new, km</label><input name="ref_range_km" type="number" step="1" min="100" max="1000" required></div>
+      <div><label>Usable capacity when new, kWh (optional)</label><input name="ref_capacity_kwh" inputmode="decimal"></div>
+      {% if cfg.allow_wake %}<div><label><input type="checkbox" name="wake" value="1" style="width:auto"> Wake the car once at start</label></div>{% endif %}
+      <div><button>Start</button></div>
+    </div>
+  </form>
+  <p class="small mut">Use the range the car displayed at 100 % when it was new, for this exact variant and wheel size. Best results: let the car charge at least 20 points, ideally to above 80 %, during the window.</p>
+  {% else %}<p class="mut">No vehicles on this account.</p>{% endif %}
+</div>
+<div class="card">
+  <h2>Assessments</h2>
+  {% if assessments %}
+  <table><tr><th>#</th><th>Vehicle</th><th>Started</th><th>Status</th><th></th></tr>
+  {% for a in assessments %}<tr><td>{{ a.id }}</td><td>{{ a.name or "" }} <span class="mono">{{ a.vin }}</span></td><td>{{ a.started_at|dt }}</td>
+  <td><span class="pill {{ 'ok' if a.status == 'done' else 'alert' if a.status == 'error' else 'info' }}">{{ a.status }}</span></td>
+  <td><a href="/assessments/{{ a.id }}">Open</a></td></tr>{% endfor %}</table>
+  {% else %}<p class="mut">None yet.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
