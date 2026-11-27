@@ -141,11 +141,13 @@ async def start(request: Request, vin: str = Form(...), name: str = Form(""), re
     with db.conn() as c:
         # One running assessment per car: a second one would double the billable polling.
         # No await between this check and the insert, so two submissions cannot both pass.
-        dup = c.execute("SELECT id, account_id FROM assessments WHERE vin=? AND status='running'", (vin,)).fetchone()
-        if dup and dup["account_id"] == acc:
-            return RedirectResponse(f"/assessments/{dup['id']}", 303)
+        dup = c.execute("SELECT id FROM assessments WHERE vin=? AND status='running'", (vin,)).fetchone()
         if dup:
-            raise HTTPException(409, "An assessment is already running for this vehicle")
+            # The caller has just been shown to hold this VIN at Tesla, so hand the run to their
+            # sign-in rather than refuse: every sign-in is a new account row, and a refusal would
+            # lock an owner who signed in again out of their own car until the window ends.
+            c.execute("UPDATE assessments SET account_id=? WHERE id=?", (acc, dup["id"]))
+            return RedirectResponse(f"/assessments/{dup['id']}", 303)
         cur = c.execute(
             "INSERT INTO assessments(account_id, vin, name, ref_range_km, ref_capacity_kwh, started_at, ends_at) VALUES (?,?,?,?,?,?,?)",
             (acc, vin, name, ref_range_km, cap, now, now + cfg.window_seconds))

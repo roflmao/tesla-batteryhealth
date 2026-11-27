@@ -44,8 +44,12 @@ def test_second_start_reuses_running_assessment(client):
         assert conn.execute("SELECT count(*) FROM assessments WHERE status='running'").fetchone()[0] == 1
 
 
-def test_other_account_cannot_start_on_a_busy_car(client):
-    assert start(client).status_code == 303
-    with TestClient(app) as other:
-        other.get("/auth/login")
-        assert start(other).status_code == 409
+def test_new_sign_in_takes_over_the_running_assessment(client):
+    first = start(client)
+    with TestClient(app) as again:                     # same owner, new sign-in = new account row
+        again.get("/auth/login")
+        second = start(again)
+        assert second.status_code == 303 and second.headers["location"] == first.headers["location"]
+        assert again.get(first.headers["location"]).status_code == 200
+    with db.conn() as conn:
+        assert conn.execute("SELECT count(*) FROM assessments WHERE status='running'").fetchone()[0] == 1
