@@ -252,6 +252,37 @@ returns the key. `BH_BASIC_AUTH` is a minimal gate in front of the UI; prefer
 your SSO proxy, but leave `/.well-known/`, `/auth/callback` and `/ingest/`
 reachable as needed. `GET /healthz` is the liveness/readiness endpoint.
 
+#### Restricting access by country (optional)
+
+The UI can be limited to one country at the proxy, but two paths must stay
+open to the world: Tesla fetches the public key from abroad (at registration
+and whenever a key is paired with a car), and certificate renewal over the HTTP
+challenge is checked from abroad too. With nginx's GeoIP2 module, replace
+`location /` in the HTTPS server block with:
+
+    # in the http block
+    map $geoip2_data_country_iso_code $allowed_country {
+        default 0;
+        NO      1;       # the country to allow
+    }
+
+    # in the server block
+    location /.well-known/appspecific/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+    }
+    location / {
+        if ($allowed_country = 0) { return 403; }
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+Keep `/.well-known/acme-challenge/` on port 80 unrestricted, and do not apply
+the rule to the Fleet Telemetry port: cars connect to it over the mobile
+network. This is a filter, not authentication; combine it with
+`BH_BASIC_AUTH` or an SSO proxy if the sign-in page should not be public.
+
 ### 4. Register the domain with Tesla (once)
 
     sudo docker run --rm --env-file /etc/batteryhealth/.env batteryhealth \
@@ -265,7 +296,7 @@ Then open `https://<host>`, sign in with Tesla and start an assessment.
 |---|---|
 | `register` fails with `unauthorized_client` | The client secret does not match the client ID: truncated copy, stray space, or quotes in the env file. |
 | `register` fails with `client_not_found` | The client ID is wrong, often because of quotes in the env file. |
-| `register` fails with `424 Public key download failed` | Tesla could not fetch the key over HTTPS on port 443: proxy not configured yet, certificate invalid, or the path is blocked. |
+| `register` fails with `424 Public key download failed` | Tesla could not fetch the key over HTTPS on port 443: proxy not configured yet, certificate invalid, or the path is blocked, for example by a country rule. |
 | Tesla's sign-in page says "Client authentication failed" | The running container still has an old client ID; re-create it after editing the env file. |
 | The app exits at startup with `BH_SECRET_KEY must be set` | Set a random value of at least 16 characters. |
 
@@ -285,39 +316,130 @@ Then open `https://<host>`, sign in with Tesla and start an assessment.
 | `BH_RUN_LOG_DIR` | `runs` (`/data/runs` in the image) | Raw run logs, one file per assessment. Empty disables. |
 | `BH_WINDOW_SECONDS` | `86400` | Observation window. |
 | `BH_POLL_SECONDS` / `BH_IDLE_POLL_SECONDS` | `900` / `1800` | Poll interval while charging / otherwise. |
+| `BH_TELEMETRY_ZMQ` | off | Address of fleet-telemetry's ZMQ publisher, e.g. `tcp://fleet-telemetry:5284`. |
+| `BH_TELEMETRY_HOSTNAME`, `BH_TELEMETRY_PORT` | off, `443` | Where cars are told to connect. |
+| `BH_TELEMETRY_CA_PATH` | none | Certificate chain cars check the telemetry server against. |
+| `BH_COMMAND_PROXY_URL`, `BH_COMMAND_PROXY_CA` | off | Tesla's vehicle-command proxy and its TLS certificate. |
 | `BH_LATE_TELEMETRY_SECONDS` | `21600` | How long after the window late telemetry may still rebuild a finished report. |
 | `BH_ALLOW_WAKE` | `0` | Offer a single wake-up at the start of an assessment. |
 | `BH_MOCK` | `0` | Simulated car instead of Tesla. |
 
 ### Fleet Telemetry (everything beyond the "login only" metrics)
 
-1. Run Tesla's `fleet-telemetry` server (mTLS, public on 443) and the
-   `vehicle-command` HTTP proxy with `keys/private-key.pem`.
-2. The owner pairs your virtual key: `https://tesla.com/_ak/<host>`.
-3. Send `scripts/telemetry_fields.json` as the `fields` of
-   `POST /api/1/vehicles/fleet_telemetry_config` through the proxy; wait for `synced`.
-4. Forward records from your dispatcher (Kafka/MQTT/...) to
-   `POST /ingest/telemetry` with `Authorization: Bearer $BH_INGEST_TOKEN`.
-   Both the flat form and fleet-telemetry's decoded JSON records are accepted
-   (see the docstring in `app/main.py`). Signals are matched to an assessment by VIN and time.
-   The car buffers telemetry while it is out of coverage, so records timestamped
-   inside a window that arrive up to 6 hours after it closed
-   (`BH_LATE_TELEMETRY_SECONDS`) rebuild the finished report.
+With Fleet Telemetry the car streams signals to a server you run, which adds
+the BMS capacity figure, brick voltages, temperatures, the AC/DC charging split
+and the motor indicators to the report. It needs two of Tesla's own services
+next to the app, and the car must run software 2024.26 or later:
+
+    car ──mTLS──▶ fleet-telemetry ──ZMQ──▶ app          (data)
+    app ──▶ vehicle-command proxy ──signed──▶ Tesla     (one-time configuration per car)
+
+The car connects straight to the telemetry server and identifies itself with
+its own certificate, so that connection cannot pass through an HTTPS reverse
+proxy. Give the telemetry server its own public port (4443 below) and open it
+in the firewall.
+
+**1. Network.** Put the containers on one Docker network so they reach each
+other by name:
+
+    sudo docker network create batteryhealth
+
+**2. Telemetry server.** It needs a certificate for `<host>`; the one your
+reverse proxy uses will do. The server runs as UID 65532, so give it copies it
+can read:
+
+    sudo mkdir -p /etc/batteryhealth/telemetry
+    sudo cp -L /etc/letsencrypt/live/<host>/fullchain.pem \
+               /etc/letsencrypt/live/<host>/privkey.pem \
+               /etc/letsencrypt/live/<host>/chain.pem /etc/batteryhealth/telemetry/
+    sudo chown -R 65532 /etc/batteryhealth/telemetry
+
+    sudo docker run -d --name fleet-telemetry --restart unless-stopped \
+      --network batteryhealth -p 4443:4443 \
+      -v "$PWD/deploy/fleet-telemetry.json:/etc/fleet-telemetry/config.json:ro" \
+      -v /etc/batteryhealth/telemetry:/certs:ro \
+      tesla/fleet-telemetry:v0.10.1
+
+Repeat the copy and restart the container whenever the certificate is renewed.
+
+**3. Command proxy.** Tesla only accepts a streaming configuration signed with
+your application's private key; its `vehicle-command` proxy does the signing.
+It gets the private key from `keygen` and a self-signed certificate for the
+app to recognise it by. It publishes no port, so only the app can reach it:
+
+    sudo mkdir -p /etc/batteryhealth/proxy && cd /etc/batteryhealth/proxy
+    sudo openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+      -keyout tls-key.pem -out tls-cert.pem -days 3650 \
+      -subj /CN=vehicle-command -addext "subjectAltName=DNS:vehicle-command"
+    sudo cp ../keys/private-key.pem fleet-key.pem
+    sudo chown -R 65532 . && sudo chmod 600 tls-key.pem fleet-key.pem
+
+    sudo docker run -d --name vehicle-command --restart unless-stopped \
+      --network batteryhealth -v /etc/batteryhealth/proxy:/config:ro \
+      tesla/vehicle-command:0.4.1 \
+      -tls-key /config/tls-key.pem -cert /config/tls-cert.pem \
+      -key-file /config/fleet-key.pem -host 0.0.0.0 -port 4443
+
+**4. App.** Add to the env file:
+
+    BH_TELEMETRY_ZMQ=tcp://fleet-telemetry:5284
+    BH_TELEMETRY_HOSTNAME=<host>
+    BH_TELEMETRY_PORT=4443
+    BH_TELEMETRY_CA_PATH=/srv/keys/telemetry-ca.pem
+    BH_COMMAND_PROXY_URL=https://vehicle-command:4443
+    BH_COMMAND_PROXY_CA=/srv/keys/proxy-cert.pem
+
+and re-create the app container with the network and the two certificates:
+
+    sudo docker rm -f batteryhealth
+    sudo docker run -d --name batteryhealth --restart unless-stopped \
+      --network batteryhealth --env-file /etc/batteryhealth/.env \
+      -p 127.0.0.1:8080:8000 \
+      -v batteryhealth-data:/data \
+      -v /etc/batteryhealth/keys/public-key.pem:/srv/keys/public-key.pem:ro \
+      -v /etc/batteryhealth/telemetry/chain.pem:/srv/keys/telemetry-ca.pem:ro \
+      -v /etc/batteryhealth/proxy/tls-cert.pem:/srv/keys/proxy-cert.pem:ro \
+      batteryhealth
+
+**5. Car.** On a phone with the Tesla app, signed in as the car's owner, open
+`https://tesla.com/_ak/<host>` and approve the key. Then, in the app, follow
+"set up for <car>" under the start form and press **Enable telemetry**. The
+page shows each step and any errors the car reports:
+
+![Fleet Telemetry setup page](examples/06-telemetry-setup.png)
+
+Telemetry values are stored only for a car with a running assessment (or one
+that finished less than `BH_LATE_TELEMETRY_SECONDS` ago), so start an
+assessment to see data arrive. The car buffers telemetry while it is out of
+coverage; records timestamped inside a window that arrive up to 6 hours after
+it closed rebuild the finished report.
+
+Notes:
+
+- `BH_TELEMETRY_CA_PATH` is the certificate chain the car checks the telemetry
+  server against. Tesla's `check_server_cert.sh` (in the fleet-telemetry
+  repository) verifies that hostname, port and chain fit together.
+- The signals requested and their intervals are in `scripts/telemetry_fields.json`.
+- Other dispatchers work too: anything that can POST fleet-telemetry's decoded
+  JSON records to `/ingest/telemetry` with `Authorization: Bearer $BH_INGEST_TOKEN`
+  (see the docstring in `app/main.py`).
+- Streaming costs about USD 0.04 per car and day at most, at Tesla's rates.
 
 ## Known gaps
 
 - **Verified against one real car so far.** Sign-in, partner registration,
   polling, VIN decoding, the range-based estimate and the alerts list have run
   against a real Model Y. Not yet exercised with real data: the charge-based
-  estimate, Fleet Telemetry (including units of `IsolationResistance` and the
-  temperature signals), the optional wake-up, and accounts with more than 100
-  vehicles.
+  estimate, the optional wake-up, accounts with more than 100 vehicles, and
+  Fleet Telemetry with a real car. For telemetry, the app has been run against
+  Tesla's actual `fleet-telemetry` and `vehicle-command` containers, but no car
+  has streamed to it yet: the configuration request, the certificate chain, and
+  the units of `IsolationResistance` and the temperature signals are untested.
 - **Accounts are keyed on the Tesla user id** read from the sign-in's
   `id_token`. If Tesla's token response carries no `id_token`, each sign-in
   becomes a new account and earlier assessments are not listed after signing in
   again. Not yet confirmed against a real Tesla account.
 - **No retention.** Telemetry rows, samples, tokens and run logs are kept until deleted by hand.
-- `/ingest/telemetry` answers 500 rather than 400 on a malformed body.
 
 ## Layout
 
@@ -327,8 +449,10 @@ Then open `https://<host>`, sign in with Tesla and start an assessment.
     app/metrics.py     metric table, thresholds, energy and brick series
     app/tesla.py       Fleet API client      app/mock.py   simulator
     app/db.py          SQLite schema, token encryption
+    app/telemetry.py   Fleet Telemetry: subscriber, storage rules, car configuration
     app/runlog.py      per-assessment log of raw answers from the car
     app/replay.py      recompute a report from a run log; scrub logs into fixtures
     tests/fixtures/    recorded runs replayed by the tests
     scripts/           partner registration, telemetry field list
+    deploy/            configuration for Tesla's fleet-telemetry server
     examples/          screenshots and a sample report
