@@ -229,7 +229,7 @@ async def ingest(request: Request):
     if not INGEST_TOKEN or not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {INGEST_TOKEN}"):
         raise HTTPException(401)
     body = await request.json()
-    n = 0
+    n, now, late = 0, int(time.time()), {}
     for rec in body if isinstance(body, list) else [body]:
         vin, data = rec.get("vin"), rec.get("data")
         if not vin or not data:
@@ -242,10 +242,17 @@ async def ingest(request: Request):
         ts = int(ts or time.time())
         n += db.insert_telemetry(vin, ts, data)
         with db.conn() as c:
-            running = c.execute("SELECT * FROM assessments WHERE vin=? AND status='running'", (vin,)).fetchall()
-        for a in running:
+            affected = c.execute(
+                "SELECT * FROM assessments WHERE vin=? AND (status='running' OR "
+                "(status='done' AND ? BETWEEN started_at AND ends_at AND ends_at > ?))",
+                (vin, ts, now - cfg.late_telemetry_seconds)).fetchall()
+        for a in affected:
             runlog.record(a, "telemetry", {"ts": ts, "data": data})
-    return {"stored": n}
+            if a["status"] == "done":
+                late[a["id"]] = a
+    for a in late.values():          # the car delivered buffered records after the window closed
+        worker.finalize(a)
+    return {"stored": n, "reports_rebuilt": len(late)}
 
 
 @app.get("/.well-known/appspecific/com.tesla.3p.public-key.pem")

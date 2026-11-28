@@ -140,7 +140,7 @@ class TeslaClient:
 
     async def wake(self, account_id: int, vin: str) -> None:
         base, token = await self.token_for(account_id)
-        r = await self.http.post(f"{base}/api/1/vehicles/{vin}/wake_up",
+        r = await self.http.post(f"{base}/api/1/vehicles/{vin}/wake_up", json={},   # Tesla wants a JSON content type
                                  headers={"Authorization": f"Bearer {token}"})
         if r.status_code >= 400:
             raise VehicleUnavailable(f"wake failed: {r.status_code}")

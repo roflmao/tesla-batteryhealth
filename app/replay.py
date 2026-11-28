@@ -32,6 +32,8 @@ def replay(path: str) -> dict:
             samples.append(soh.Sample(ts=t, state=d.get("state") or "offline"))
         elif kind == "unavailable":
             samples.append(soh.Sample(ts=t, state="asleep"))
+        elif kind == "error":
+            samples.append(soh.Sample(ts=t, state="offline"))
         elif kind == "vehicle_data":
             samples.append(soh.Sample.from_vehicle_data(t, d))
         elif kind == "telemetry":

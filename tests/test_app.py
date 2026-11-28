@@ -1,7 +1,10 @@
+import asyncio
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db, main, tesla
+from app import db, main, tesla, worker
 from app.main import app
 from app.mock import VIN
 
@@ -10,7 +13,7 @@ from app.mock import VIN
 def client():
     with TestClient(app) as c:
         with db.conn() as conn:
-            conn.execute("UPDATE assessments SET status='done'")   # leftovers from earlier tests
+            conn.execute("UPDATE assessments SET status='stopped'")   # leftovers from earlier tests
         assert c.get("/auth/login").status_code == 200             # mock sign-in, lands on /
         yield c
 
@@ -32,7 +35,7 @@ def test_invalid_range_rejected(client, rng):
 def test_capacity_optional_and_comma_accepted(client):
     assert start(client, ref_capacity_kwh="").status_code == 303
     with db.conn() as conn:
-        conn.execute("UPDATE assessments SET status='done'")
+        conn.execute("UPDATE assessments SET status='stopped'")
     assert start(client, ref_capacity_kwh="74,5").status_code == 303
 
 
@@ -76,3 +79,40 @@ def test_another_tesla_user_gets_their_own_assessment(client, monkeypatch):
 def test_token_subject_tolerates_missing_or_broken_id_token():
     assert tesla.token_subject({}) is None
     assert tesla.token_subject({"id_token": "not-a-jwt"}) is None
+
+
+def test_late_telemetry_inside_the_window_rebuilds_the_report(client):
+    url = start(client, ref_capacity_kwh="75").headers["location"]
+    with db.conn() as conn:
+        a = conn.execute("SELECT * FROM assessments WHERE status='running'").fetchone()
+        conn.execute("DELETE FROM telemetry")          # simulator readings left by earlier tests
+    worker.finalize(a)
+    before = client.get(url + "/report.json").json()["summary"]["soh_pct"]
+
+    def ingest(ts):
+        return client.post("/ingest/telemetry", headers={"Authorization": "Bearer test-token"},
+                           json={"vin": VIN, "ts": ts, "data": {"NominalFullPackEnergyKwh": 60.0}}).json()
+
+    assert ingest(a["ends_at"] + 5)["reports_rebuilt"] == 0          # after the window: not this report's data
+    assert ingest(a["started_at"] + 5)["reports_rebuilt"] == 1
+    assert before != 80.0 and client.get(url + "/report.json").json()["summary"]["soh_pct"] == 80.0
+
+
+def test_transient_tesla_failure_is_stored_so_polling_backs_off(client):
+    start(client)
+    with db.conn() as conn:
+        a = conn.execute("SELECT * FROM assessments WHERE status='running'").fetchone()
+        conn.execute("DELETE FROM samples WHERE assessment_id=?", (a["id"],))
+
+    class Down:
+        calls = 0
+
+        async def vehicle(self, account_id, vin):
+            Down.calls += 1
+            raise httpx.ConnectError("tesla is down")
+
+    asyncio.run(worker.poll_one(Down(), a))
+    asyncio.run(worker.poll_one(Down(), a))          # next tick: must wait for the interval, not call again
+    assert Down.calls == 1
+    with db.conn() as conn:
+        assert [r["state"] for r in conn.execute("SELECT state FROM samples WHERE assessment_id=?", (a["id"],))] == ["offline"]

@@ -177,6 +177,7 @@ car becomes a regression test. `mock-model3.jsonl` is a run of the simulator.
 | `BH_RUN_LOG_DIR` | `runs` (`/data/runs` in the image) | Raw run logs, one file per assessment. Empty disables. |
 | `BH_WINDOW_SECONDS` | `86400` | Observation window. |
 | `BH_POLL_SECONDS` / `BH_IDLE_POLL_SECONDS` | `900` / `1800` | Poll interval while charging / otherwise. |
+| `BH_LATE_TELEMETRY_SECONDS` | `21600` | How long after the window late telemetry may still rebuild a finished report. |
 | `BH_ALLOW_WAKE` | `0` | Offer a single wake-up at the start of an assessment. |
 | `BH_MOCK` | `0` | Simulated car instead of Tesla. |
 
@@ -191,6 +192,9 @@ car becomes a regression test. `mock-model3.jsonl` is a run of the simulator.
    `POST /ingest/telemetry` with `Authorization: Bearer $BH_INGEST_TOKEN`.
    Both the flat form and fleet-telemetry's decoded JSON records are accepted
    (see the docstring in `app/main.py`). Signals are matched to an assessment by VIN and time.
+   The car buffers telemetry while it is out of coverage, so records timestamped
+   inside a window that arrive up to 6 hours after it closed
+   (`BH_LATE_TELEMETRY_SECONDS`) rebuild the finished report.
 
 ## Known gaps
 

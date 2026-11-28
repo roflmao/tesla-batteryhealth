@@ -128,6 +128,8 @@ def normalize_telemetry(data: dict) -> dict[str, float | str]:
     out: dict[str, float | str] = {}
     for k, v in data.items():
         if isinstance(v, dict):            # fleet-telemetry decoded record: {"doubleValue": 1.2}
+            if "invalid" in v:             # {"invalid": true}: the car could not measure the signal
+                continue
             v = next(iter(v.values()), None)
         if v is None or isinstance(v, (dict, list)):
             continue

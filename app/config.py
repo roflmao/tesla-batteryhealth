@@ -34,6 +34,9 @@ class Config:
     idle_poll_seconds: int = field(default_factory=lambda: int(_env("IDLE_POLL_SECONDS", "1800")))  # while not charging
     # Raw answers from the car, one file per assessment (app/runlog.py). Empty disables.
     run_log_dir: str = field(default_factory=lambda: _env("RUN_LOG_DIR", "runs"))
+    # Fleet Telemetry buffered in the car can arrive after the window closed; within this long
+    # after the end, records timestamped inside the window rebuild the finished report.
+    late_telemetry_seconds: int = field(default_factory=lambda: int(_env("LATE_TELEMETRY_SECONDS", str(6 * 3600))))
     allow_wake: bool = field(default_factory=lambda: _env("ALLOW_WAKE", "0") == "1")
 
 

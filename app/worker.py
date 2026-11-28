@@ -6,6 +6,8 @@ import json
 import logging
 import time
 
+import httpx
+
 from . import db, metrics, runlog, soh, vin as vindec
 from .config import cfg
 from .tesla import AuthExpired, VehicleUnavailable, parse_alerts
@@ -81,14 +83,19 @@ async def fetch_alerts(client, a) -> None:
                       (a["id"], r["ts"], r["name"], r["audience"], r["user_text"]))
 
 
+def finalize(a) -> None:
+    """Build the report and store it as the assessment's result. Also used to rebuild it for late telemetry."""
+    rep = build_report(a)
+    with db.conn() as c:
+        c.execute("UPDATE assessments SET status='done', result_json=? WHERE id=?", (json.dumps(rep), a["id"]))
+    runlog.record(a, "done", {"ends_at": a["ends_at"], **rep["summary"], "confidence": rep["estimate"]["confidence"]})
+
+
 async def poll_one(client, a) -> None:
     now = int(time.time())
     if now >= a["ends_at"]:
         await fetch_alerts(client, a)
-        rep = build_report(a)
-        with db.conn() as c:
-            c.execute("UPDATE assessments SET status='done', result_json=? WHERE id=?", (json.dumps(rep), a["id"]))
-        runlog.record(a, "done", {"ends_at": a["ends_at"], **rep["summary"], "confidence": rep["estimate"]["confidence"]})
+        finalize(a)
         return
 
     with db.conn() as c:
@@ -115,6 +122,11 @@ async def poll_one(client, a) -> None:
     except VehicleUnavailable as e:
         runlog.record(a, "unavailable", str(e)[:300])
         _store(a["id"], "asleep")
+    except httpx.HTTPError as e:
+        # Tesla 5xx or a network error. Store the attempt so the next one waits for the normal
+        # interval; without a sample the loop would retry the billable call every tick.
+        runlog.record(a, "error", str(e)[:300])
+        _store(a["id"], "offline")
     except AuthExpired as e:
         with db.conn() as c:
             c.execute("UPDATE assessments SET status='error', note=? WHERE id=?",

@@ -8,6 +8,7 @@ Line format: {"t": <unix time>, "kind": <see below>, "data": ...}
   vehicle       answer from GET /vehicles/{vin} (connectivity check)
   vehicle_data  answer from GET /vehicles/{vin}/vehicle_data
   unavailable   the car did not answer (asleep, offline or rate limited)
+  error         Tesla answered 5xx or could not be reached
   alerts        answer from GET /vehicles/{vin}/recent_alerts
   alerts_error  why the alerts could not be fetched
   telemetry     one Fleet Telemetry record: {"ts": ..., "data": {field: value}}

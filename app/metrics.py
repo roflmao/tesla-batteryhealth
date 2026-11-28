@@ -7,6 +7,7 @@ rather than guessed.
 Status thresholds below are rules of thumb, NOT Tesla specifications. Tune them
 against cars whose condition you know before relying on the colour coding.
 """
+from bisect import bisect_right
 from collections import Counter
 from dataclasses import asdict, dataclass
 from statistics import median
@@ -45,10 +46,34 @@ def _last(tele: dict, field: str):
     return s[-1][1] if s else None
 
 
+def _series(tele: dict, field: str) -> list[tuple[int, float]]:
+    return [(ts, v) for ts, v in tele.get(field, []) if isinstance(v, (int, float))]
+
+
+def _asof(series: list[tuple[int, float]], ts: int) -> float | None:
+    """Last value at or before ts.
+
+    Fleet Telemetry sends a field only when it changes and each field has its
+    own interval, so two fields rarely share a timestamp. The last value sent
+    is the current one until the next arrives.
+    """
+    i = bisect_right(series, (ts, float("inf")))
+    return series[i - 1][1] if i else None
+
+
+def _paired_ts(tele: dict, a: str, b: str) -> list[tuple[int, float, float]]:
+    """(ts, a, b) at every moment either field reported, once both are known."""
+    sa, sb = _series(tele, a), _series(tele, b)
+    out = []
+    for ts in sorted({t for t, _ in sa} | {t for t, _ in sb}):
+        va, vb = _asof(sa, ts), _asof(sb, ts)
+        if va is not None and vb is not None:
+            out.append((ts, va, vb))
+    return out
+
+
 def _paired(tele: dict, a: str, b: str) -> list[tuple[float, float]]:
-    """Values of two fields that share a timestamp."""
-    bm = {ts: v for ts, v in tele.get(b, []) if isinstance(v, (int, float))}
-    return [(v, bm[ts]) for ts, v in tele.get(a, []) if isinstance(v, (int, float)) and ts in bm]
+    return [(va, vb) for _, va, vb in _paired_ts(tele, a, b)]
 
 
 def build(res: Result, tele: dict, alerts: list[dict], ref_range_km: float,
@@ -204,10 +229,10 @@ def build(res: Result, tele: dict, alerts: list[dict], ref_range_km: float,
     m.append(x)
 
     x = Metric("motor_leak", "Internal Motor Leakage", G2)
-    spd = {ts: v for ts, v in tele.get("VehicleSpeed", []) if isinstance(v, (int, float))}
-    iso_ts = [(ts, v) for ts, v in tele.get("IsolationResistance", []) if isinstance(v, (int, float))]
-    driving = [v for ts, v in iso_ts if spd.get(ts, 0) > 0]
-    parked = [v for ts, v in iso_ts if ts in spd and spd[ts] == 0]
+    spd, iso_ts = _series(tele, "VehicleSpeed"), _series(tele, "IsolationResistance")
+    at_speed = [(v, _asof(spd, ts)) for ts, v in iso_ts]
+    driving = [v for v, s in at_speed if s is not None and s > 0]
+    parked = [v for v, s in at_speed if s == 0]
     if driving and parked:
         ratio = median(driving) / median(parked) if median(parked) else 1
         bad = ratio < ISOLATION_DROP_WATCH
@@ -246,16 +271,18 @@ def energy(tele: dict) -> dict:
 
     The car reports lifetime counters only, so window figures are differences
     between the first and last reading. Use is attributed to driving when the
-    car was moving at either end of an interval, otherwise to standing.
+    car was moving at the start of an interval or at any point during it,
+    otherwise to standing.
     """
     out: dict = {}
     used = [(ts, v) for ts, v in tele.get("LifetimeEnergyUsed", []) if isinstance(v, (int, float))]
     if len(used) >= 2:
-        spd = {ts: v for ts, v in tele.get("VehicleSpeed", []) if isinstance(v, (int, float))}
+        spd = _series(tele, "VehicleSpeed")
         driving = standing = 0.0
         for (t0, v0), (t1, v1) in zip(used, used[1:]):
             d = max(v1 - v0, 0.0)
-            if spd.get(t0, 0) > 0 or spd.get(t1, 0) > 0:
+            during = spd[bisect_right(spd, (t0, float("inf"))):bisect_right(spd, (t1, float("inf")))]
+            if (_asof(spd, t0) or 0) > 0 or any(v > 0 for _, v in during):
                 driving += d
             else:
                 standing += d
@@ -273,5 +300,4 @@ def energy(tele: dict) -> dict:
 
 def brick_series(tele: dict) -> list[list[float]]:
     """[ts, highest brick V, lowest brick V] for the voltage spread chart."""
-    lo = {ts: v for ts, v in tele.get("BrickVoltageMin", []) if isinstance(v, (int, float))}
-    return [[ts, v, lo[ts]] for ts, v in tele.get("BrickVoltageMax", []) if isinstance(v, (int, float)) and ts in lo]
+    return [[ts, hi, lo] for ts, hi, lo in _paired_ts(tele, "BrickVoltageMax", "BrickVoltageMin")]
