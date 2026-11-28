@@ -28,3 +28,28 @@ def test_motor_leak_uses_last_known_speed():
     mets, _ = metrics.build(Result(), tele, [], 500, None)
     leak = {m.key: m for m in mets}["motor_leak"]
     assert leak.value == "Possible leakage" and leak.status == "watch"
+
+
+def _motor(tele, alerts):
+    from app.soh import Result
+    return {m.key: m for m in metrics.build(Result(), tele, alerts, 500, None)[0]}["motor"]
+
+
+def test_motor_faults_reported_without_stator_temperatures():
+    assert _motor({"Hvil": [(0, "HvilStatusFault")]}, []).status == "alert"
+    assert _motor({}, [{"name": "DI_a123", "ts": None}]).value == "Drive unit alerts present"
+    assert _motor({}, []).status == "na"
+
+
+def test_interlock_fault_is_not_downgraded_by_drive_unit_alerts():
+    m = _motor({"Hvil": [(0, "HvilStatusFault")], "DiStatorTempR": [(0, 40.0)]}, [{"name": "DIR_a001", "ts": None}])
+    assert (m.value, m.status) == ("Interlock fault", "alert")
+
+
+def test_short_charge_is_not_reported_as_no_charging():
+    from app.soh import Sample, compute
+    s = [Sample(ts=i * 900, battery_level=60 + i, usable_battery_level=60 + i, battery_range_mi=180 + 3 * i,
+                charge_energy_added=i * 0.7, charging_state="Charging") for i in range(3)]
+    res = compute(s, ref_range_km=480)
+    charging = {m.key: m for m in metrics.build(res, {}, [], 480, None)[0]}["charging"]
+    assert res.capacity_kwh is None and charging.value == "Charging observed"

@@ -120,8 +120,15 @@ class TeslaClient:
             return cfg.fleet_base
 
     async def vehicles(self, account_id: int) -> list[dict]:
+        """Every vehicle on the account. Tesla returns at most 100 per page."""
         base, token = await self.token_for(account_id)
-        return await self._get(base, token, "/api/1/vehicles")
+        out: list[dict] = []
+        for page in range(1, 51):                       # 5000 vehicles; stops a misbehaving API looping forever
+            batch = await self._get(base, token, "/api/1/vehicles", page=page, per_page=100)
+            out.extend(batch or [])
+            if not batch or len(batch) < 100:
+                break
+        return out
 
     async def vehicle(self, account_id: int, vin: str) -> dict:
         """Cheap connectivity check; does not contact the car."""

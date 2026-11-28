@@ -208,6 +208,9 @@ def build(res: Result, tele: dict, alerts: list[dict], ref_range_km: float,
     elif res.session_energy_kwh:
         x.value, x.status = f"{res.session_energy_kwh} kWh added", "info"
         x.detail = f"One session from {res.session_soc_from:.0f} % to {res.session_soc_to:.0f} %."
+    elif res.charging_seen:
+        x.value, x.status = "Charging observed", "info"
+        x.detail = "The car was charging during the window, but the session was too short to measure."
     elif have_tele or res.samples_online:
         x.value, x.detail = "No charging observed", "The car was not charged during the window."
     m.append(x)
@@ -215,17 +218,21 @@ def build(res: Result, tele: dict, alerts: list[dict], ref_range_km: float,
     x = Metric("motor", "Motor Integrity", G2)
     stator = {s: _nums(tele, f"DiStatorTemp{s}") for s in ("F", "R", "REL", "RER")}
     stator = {k: v for k, v in stator.items() if v}
-    if stator:
-        x.value, x.status = "No fault indicated", "ok"
-        x.detail = "Peak stator temperature " + ", ".join(f"{k} {max(v):.0f} °C" for k, v in stator.items()) + "."
-        hv = _last(tele, "Hvil")
-        if isinstance(hv, str):
-            x.detail += f" High-voltage interlock: {hv}."
+    hv = _last(tele, "Hvil")
+    hv = hv if isinstance(hv, str) else None
+    di_alerts = [a for a in alerts if str(a.get("name", "")).upper().startswith(("DI_", "DIF_", "DIR_"))]
+    if stator or hv or di_alerts:          # each indicator stands on its own; any one is enough to report
+        x.value, x.status, parts = "No fault indicated", "ok", []
+        if stator:
+            parts.append("Peak stator temperature " + ", ".join(f"{k} {max(v):.0f} °C" for k, v in stator.items()) + ".")
+        if di_alerts:
+            x.value, x.status = "Drive unit alerts present", "watch"
+            parts.append(f"{len(di_alerts)} drive unit alert(s) in the car's recent alerts.")
+        if hv:
+            parts.append(f"High-voltage interlock: {hv}.")
             if "ok" not in hv.lower():
                 x.value, x.status = "Interlock fault", "alert"
-        if any(str(a.get("name", "")).upper().startswith(("DI_", "DIF_", "DIR_")) for a in alerts):
-            x.value, x.status = "Drive unit alerts present", "watch"
-        x.detail += " Indicators only; the API has no direct motor health value."
+        x.detail = " ".join(parts + ["Indicators only; the API has no direct motor health value."])
     m.append(x)
 
     x = Metric("motor_leak", "Internal Motor Leakage", G2)

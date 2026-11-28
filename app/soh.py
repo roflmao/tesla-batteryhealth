@@ -63,6 +63,7 @@ class Result:
     capacity_kwh_low: float | None = None
     capacity_kwh_high: float | None = None
     soh_charge_pct: float | None = None
+    charging_seen: bool = False       # any sample taken while charging, measurable session or not
     # summary
     soh_pct: float | None = None
     confidence: str = "none"          # none | low | medium | high
@@ -161,6 +162,7 @@ def compute(samples: list[Sample], ref_range_km: float, ref_capacity_kwh: float 
         r.notes.append("Range method unavailable: no usable samples above 20 % charge.")
 
     # --- charge method ---
+    r.charging_seen = any(s.charging_state == "Charging" for s in online)
     best = None
     for a, b in _sessions(samples):
         d_soc = b.battery_level - a.battery_level

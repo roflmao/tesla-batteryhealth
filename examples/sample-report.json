@@ -2,9 +2,9 @@
   "id": 1,
   "vin": "5YJ3MOCK0NF000001",
   "status": "done",
-  "started_at": 1795815548,
-  "ends_at": 1795815588,
-  "report_id": "4E18 5227 59D7",
+  "started_at": 1795869099,
+  "ends_at": 1795869139,
+  "report_id": "30F8 C303 8CE5",
   "vehicle": {
     "model": "Model 3",
     "year": 2022,
@@ -32,6 +32,7 @@
     "capacity_kwh_low": 67.6,
     "capacity_kwh_high": 70.4,
     "soh_charge_pct": 92.0,
+    "charging_seen": true,
     "soh_pct": 91.7,
     "confidence": "high",
     "odometer_km": 98547,
@@ -184,187 +185,187 @@
   },
   "bricks": [
     [
-      1795815548,
+      1795869099,
       3.912,
       3.9
     ],
     [
-      1795815549,
+      1795869100,
       3.9219999999999997,
       3.9099999999999997
     ],
     [
-      1795815552,
+      1795869103,
       3.952,
       3.94
     ],
     [
-      1795815553,
+      1795869104,
       3.9619999999999997,
       3.9499999999999997
     ],
     [
-      1795815554,
+      1795869105,
       3.972,
       3.96
     ],
     [
-      1795815556,
+      1795869106,
       3.9819999999999998,
       3.9699999999999998
     ],
     [
-      1795815557,
+      1795869107,
       3.992,
       3.98
     ],
     [
-      1795815558,
+      1795869108,
       4.002,
       3.9899999999999998
     ],
     [
-      1795815559,
+      1795869109,
       4.012,
       4.0
     ],
     [
-      1795815560,
+      1795869110,
       4.022,
       4.01
     ],
     [
-      1795815561,
+      1795869111,
       4.032,
       4.02
     ],
     [
-      1795815562,
+      1795869112,
       4.042,
       4.03
     ],
     [
-      1795815563,
+      1795869113,
       4.052,
       4.04
     ],
     [
-      1795815564,
+      1795869114,
       4.062,
       4.05
     ],
     [
-      1795815565,
+      1795869115,
       4.072,
       4.06
     ],
     [
-      1795815566,
+      1795869116,
       4.082,
       4.07
     ],
     [
-      1795815567,
+      1795869117,
       4.092,
       4.08
     ],
     [
-      1795815568,
+      1795869118,
       4.102,
       4.09
     ],
     [
-      1795815569,
+      1795869119,
       4.112,
       4.1
     ],
     [
-      1795815570,
+      1795869120,
       4.122,
       4.11
     ],
     [
-      1795815571,
+      1795869121,
       4.132,
       4.12
     ],
     [
-      1795815572,
+      1795869122,
       4.142,
       4.13
     ],
     [
-      1795815573,
+      1795869123,
       4.152,
       4.14
     ],
     [
-      1795815574,
+      1795869124,
       4.162,
       4.15
     ],
     [
-      1795815575,
+      1795869125,
       4.172,
       4.16
     ],
     [
-      1795815576,
+      1795869126,
       4.182,
       4.17
     ],
     [
-      1795815577,
+      1795869127,
       4.192,
       4.18
     ],
     [
-      1795815578,
+      1795869128,
       4.202,
       4.1899999999999995
     ],
     [
-      1795815579,
+      1795869129,
       4.212,
       4.2
     ],
     [
-      1795815580,
+      1795869131,
       4.2219999999999995,
       4.21
     ],
     [
-      1795815581,
+      1795869132,
       4.232,
       4.22
     ],
     [
-      1795815582,
+      1795869133,
       4.242,
       4.2299999999999995
     ],
     [
-      1795815583,
+      1795869134,
       4.252,
       4.24
     ],
     [
-      1795815584,
+      1795869135,
       4.262,
       4.25
     ],
     [
-      1795815585,
+      1795869136,
       4.272,
       4.26
     ],
     [
-      1795815586,
+      1795869137,
       4.282,
       4.27
     ],
     [
-      1795815587,
+      1795869138,
       4.292,
       4.28
     ]
@@ -380,235 +381,235 @@
   ],
   "samples": [
     {
-      "ts": 1795815548,
+      "ts": 1795869099,
       "state": "online",
       "battery_level": 48.0,
       "charging_state": "Disconnected"
     },
     {
-      "ts": 1795815549,
+      "ts": 1795869100,
       "state": "online",
       "battery_level": 45.0,
       "charging_state": "Disconnected"
     },
     {
-      "ts": 1795815550,
+      "ts": 1795869101,
       "state": "asleep",
       "battery_level": null,
       "charging_state": null
     },
     {
-      "ts": 1795815551,
+      "ts": 1795869102,
       "state": "asleep",
       "battery_level": null,
       "charging_state": null
     },
     {
-      "ts": 1795815552,
+      "ts": 1795869103,
       "state": "online",
       "battery_level": 42.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815553,
+      "ts": 1795869104,
       "state": "online",
       "battery_level": 46.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815554,
+      "ts": 1795869105,
       "state": "online",
       "battery_level": 50.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815556,
+      "ts": 1795869106,
       "state": "online",
       "battery_level": 54.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815557,
+      "ts": 1795869107,
       "state": "online",
       "battery_level": 58.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815558,
+      "ts": 1795869108,
       "state": "online",
       "battery_level": 62.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815559,
+      "ts": 1795869109,
       "state": "online",
       "battery_level": 66.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815560,
+      "ts": 1795869110,
       "state": "online",
       "battery_level": 70.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815561,
+      "ts": 1795869111,
       "state": "online",
       "battery_level": 74.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815562,
+      "ts": 1795869112,
       "state": "online",
       "battery_level": 78.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815563,
+      "ts": 1795869113,
       "state": "online",
       "battery_level": 82.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815564,
+      "ts": 1795869114,
       "state": "online",
       "battery_level": 86.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815565,
+      "ts": 1795869115,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Charging"
     },
     {
-      "ts": 1795815566,
+      "ts": 1795869116,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815567,
+      "ts": 1795869117,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815568,
+      "ts": 1795869118,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815569,
+      "ts": 1795869119,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815570,
+      "ts": 1795869120,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815571,
+      "ts": 1795869121,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815572,
+      "ts": 1795869122,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815573,
+      "ts": 1795869123,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815574,
+      "ts": 1795869124,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815575,
+      "ts": 1795869125,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815576,
+      "ts": 1795869126,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815577,
+      "ts": 1795869127,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815578,
+      "ts": 1795869128,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815579,
+      "ts": 1795869129,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815580,
+      "ts": 1795869131,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815581,
+      "ts": 1795869132,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815582,
+      "ts": 1795869133,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815583,
+      "ts": 1795869134,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815584,
+      "ts": 1795869135,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815585,
+      "ts": 1795869136,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815586,
+      "ts": 1795869137,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
     },
     {
-      "ts": 1795815587,
+      "ts": 1795869138,
       "state": "online",
       "battery_level": 90.0,
       "charging_state": "Complete"
