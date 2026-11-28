@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Battery health report · {{ a.vin }}{% endblock %}
+{% block actions %}<span class="noprint"><a href="/assessments/{{ a.id }}/report.json">JSON</a> · <a href="javascript:print()">Print / PDF</a></span>{% endblock %}
+{% macro pill(m) %}{% if m.status in ('ok', 'watch', 'alert') %}<span class="pill {{ m.status }}">{{ {'ok': 'Good', 'watch': 'Watch', 'alert': 'Severe'}[m.status] }}</span>{% endif %}{% endmacro %}
+{% macro block(m, title=None) %}
+<div class="item"><div class="row"><div class="mut small upper">{{ title or m.label }}</div>{{ pill(m) }}</div>
+  <div class="val {{ 'na' if m.status == 'na' }}">{{ m.value }}</div>
+  <div class="small mut">{{ m.detail or ("Requires Fleet Telemetry for this vehicle." if m.status == 'na') }}</div></div>
+{% endmacro %}
+{% macro kv(label, m) %}<tr><td>{{ label }}</td><td class="{{ 'na' if m.status == 'na' else '' }}" style="font-weight:600">{{ m.value }}</td></tr>{% endmacro %}
+{% block body %}
+{% set e = rep.estimate %}{% set s = rep.summary %}{% set v = rep.vehicle %}{% set en = rep.energy %}
+<style>
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.upper{text-transform:uppercase;letter-spacing:.05em;font-weight:600}.val{font-size:24px;font-weight:700;margin:2px 0}.val.na{font-size:16px;font-weight:500}
+.item{padding:12px 0;border-bottom:1px solid var(--line)}.item:last-child{border-bottom:0;padding-bottom:0}.item:first-child{padding-top:0}
+.bar{height:10px;border-radius:5px;background:var(--line);overflow:hidden;display:flex}.bar i{display:block;height:100%}
+.status{border-left:6px solid var(--mut)}.status.ok{border-color:var(--ok)}.status.watch{border-color:var(--watch)}.status.alert{border-color:var(--alert)}
+</style>
+{% if a.status == 'running' %}<meta http-equiv="refresh" content="30">
+<div class="banner">Collecting data until {{ a.ends_at|dt }}. Figures below are preliminary.
+  <form method="post" action="/assessments/{{ a.id }}/finish" style="display:inline" class="noprint"><button class="sec">Finish now</button></form></div>
+{% elif a.status == 'error' %}<div class="banner">{{ a.note }}</div>{% endif %}
+
+<div class="card">
+  <div class="mut small upper">Battery health report</div>
+  <div class="two" style="margin-top:8px">
+    <div>
+      <div style="font-size:20px;font-weight:700">{{ v.year or "" }} {{ v.model or "Tesla" }}{% if v.trim %} <span class="mut" style="font-weight:500">({{ v.trim }})</span>{% endif %}</div>
+      <div class="small mut">VIN: <span class="mono">{{ a.vin }}</span>{% if a.name %} · {{ a.name }}{% endif %}<br>
+        {% if v.plant %}Built in: {{ v.plant }}<br>{% endif %}
+        Odometer: {{ "{:,}".format(e.odometer_km|int).replace(",", " ") ~ " km" if e.odometer_km else "—" }}
+        {% if v.wheel_type %}<br>Wheels: {{ v.wheel_type }}{% endif %}{% if v.car_version %}<br>Software: {{ v.car_version }}{% endif %}</div>
+    </div>
+    <div class="small mut">Report ID: <span class="mono">{{ rep.report_id }}</span><br>
+      Observed: {{ a.started_at|dt }} → {{ a.ends_at|dt }}<br>
+      Assessment date: {{ a.ends_at|d }}<br>Valid until (30 days): {{ valid_until|d }}<br>
+      Confidence: {{ e.confidence }} · {{ e.samples_online }} of {{ e.samples_total }} samples online</div>
+  </div>
+</div>
+
+<div class="two">
+  <div class="card">
+    <h2>State of health (SoH)</h2>
+    {% set m = mk.soh %}
+    <div class="big {{ m.status }}">{% if s.soh_pct is not none %}{{ "%.1f"|format(s.soh_pct) }}%{% else %}—{% endif %}</div>
+    {% if s.soh_pct is not none %}<div class="bar" style="margin:10px 0"><i style="width:{{ [s.soh_pct, 100]|min }}%;background:currentColor" class="{{ m.status }}"></i></div>{% endif %}
+    <div class="small mut">Share of the original battery capacity that remains. {{ m.detail }}</div>
+    <table style="margin-top:10px">
+      <tr><td>Original capacity</td><td style="font-weight:600">{{ a.ref_capacity_kwh ~ " kWh" if a.ref_capacity_kwh else "not entered" }}</td></tr>
+      {{ kv("Current capacity", mk.capacity) }}
+      {{ kv("Fast charge percentage", mk.fast_charge) }}{{ kv("Average charge limit (window)", mk.charge_limit) }}{{ kv("Battery temperature (window)", mk.temperature) }}
+    </table>
+  </div>
+  <div class="card">
+    <h2>Diagnostic data</h2>
+    {{ block(mk.moisture) }}{{ block(mk.cell_spread, "Delta V (brick voltage spread)") }}
+    <div class="item"><div class="mut small upper">Estimated range at 100 %</div>
+      <div class="val">{{ mk.range.value }}</div>
+      {% if e.full_range_km %}<div class="bar"><i style="width:{{ [e.full_range_km / a.ref_range_km * 100, 100]|min }}%;background:var(--acc)"></i></div>{% endif %}
+      <div class="small mut">When new: {{ a.ref_range_km|round|int }} km{% if v.wheel_type %} · measured on the fitted wheels ({{ v.wheel_type }}){% endif %}</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row"><h2 style="margin:0">Brick voltage spread</h2>{{ pill(mk.cell_balance) }}</div>
+  <div class="val {{ 'na' if mk.cell_balance.status == 'na' }}">{{ mk.cell_balance.value }}</div>
+  {% if bricks %}
+  <svg viewBox="-40 -8 {{ bricks.w + 50 }} {{ bricks.h + 26 }}" role="img" aria-label="Highest and lowest brick voltage over the window">
+    <line x1="0" x2="{{ bricks.w }}" y1="0" y2="0" stroke="var(--line)"/><line x1="0" x2="{{ bricks.w }}" y1="{{ bricks.h }}" y2="{{ bricks.h }}" stroke="var(--line)"/>
+    <text x="-6" y="4" text-anchor="end" font-size="11" fill="var(--mut)">{{ bricks.hi }} V</text><text x="-6" y="{{ bricks.h + 4 }}" text-anchor="end" font-size="11" fill="var(--mut)">{{ bricks.lo }} V</text>
+    <polyline points="{{ bricks.max }}" fill="none" stroke="var(--acc)" stroke-width="2" stroke-dasharray="5 3"/>
+    <polyline points="{{ bricks.min }}" fill="none" stroke="var(--ok)" stroke-width="2"/>
+    <text x="0" y="{{ bricks.h + 16 }}" font-size="11" fill="var(--mut)">{{ a.started_at|dt }}</text><text x="{{ bricks.w }}" y="{{ bricks.h + 16 }}" text-anchor="end" font-size="11" fill="var(--mut)">{{ a.ends_at|dt }}</text>
+  </svg>
+  <div class="small mut">Dashed: highest brick. Solid: lowest brick. The gap between the lines is Delta V; it normally widens near empty and full. {{ mk.cell_balance.detail }}</div>
+  {% else %}<div class="small mut">Requires Fleet Telemetry for this vehicle.</div>{% endif %}
+</div>
+
+<div class="two">
+  <div class="card">
+    <h2>Energy use in the window{% if en.days %} ({{ en.days }} days){% endif %}</h2>
+    {% if en.used_kwh is defined %}
+    <div class="val">{{ en.used_kwh }} kWh</div>
+    {% set tot = [en.used_kwh, 0.001]|max %}
+    <div class="bar"><i style="width:{{ en.driving_kwh / tot * 100 }}%;background:var(--acc)"></i><i style="width:{{ en.standing_kwh / tot * 100 }}%;background:var(--watch)"></i></div>
+    <table style="margin-top:8px"><tr><td>Driving</td><td style="font-weight:600">{{ en.driving_kwh }} kWh</td></tr>
+      <tr><td>Standing (standby, sentry, climate, preconditioning)</td><td style="font-weight:600">{{ en.standing_kwh }} kWh</td></tr>
+      {% if en.regen_kwh is defined %}<tr><td>Recovered by regenerative braking</td><td style="font-weight:600">+{{ en.regen_kwh }} kWh</td></tr>{% endif %}</table>
+    {% else %}<div class="val na">not collected</div><div class="small mut">Requires Fleet Telemetry for this vehicle.</div>{% endif %}
+    <div class="item" style="margin-top:8px"><div class="small mut">Lifetime average consumption: <b>{{ mk.consumption.value }}</b></div></div>
+  </div>
+  <div class="card">
+    <h2>Charging (lifetime)</h2>
+    {% if en.lifetime_charged_kwh is defined %}
+    <div class="val">{{ "{:,.1f}".format(en.lifetime_charged_kwh).replace(",", " ") }} kWh</div>
+    <div class="bar"><i style="width:{{ en.lifetime_ac_kwh / en.lifetime_charged_kwh * 100 }}%;background:var(--acc)"></i><i style="width:{{ en.lifetime_dc_kwh / en.lifetime_charged_kwh * 100 }}%;background:var(--watch)"></i></div>
+    <table style="margin-top:8px"><tr><td>AC charging</td><td style="font-weight:600">{{ "{:,.1f}".format(en.lifetime_ac_kwh).replace(",", " ") }} kWh</td></tr>
+      <tr><td>DC fast charging</td><td style="font-weight:600">{{ "{:,.1f}".format(en.lifetime_dc_kwh).replace(",", " ") }} kWh</td></tr></table>
+    {% else %}<div class="val na">not collected</div>{% endif %}
+    <div class="item" style="margin-top:8px"><div class="small mut">In the window: <b>{{ mk.charging.value }}</b>. {{ mk.charging.detail }}</div></div>
+  </div>
+</div>
+
+<div class="two">
+  <div class="card">{{ block(mk.motor) }}{{ block(mk.motor_leak) }}{{ block(mk.cell_degradation) }}</div>
+  <div class="card">
+    <div class="row"><h2 style="margin:0">Fault codes reported by the car</h2>{{ pill(mk.bms_faults) }}</div>
+    {% if rep.alerts %}
+    <table style="margin-top:8px"><tr><th>Code</th><th>When</th><th>Audience</th></tr>
+    {% for al in rep.alerts[:15] %}<tr><td><span class="mono {{ 'watch' if al.bms }}">{{ al.name }}</span>{% if al.text %}<div class="small mut">{{ al.text }}</div>{% endif %}</td>
+      <td class="small">{{ al.time or "—" }}</td><td class="small">{{ al.audience or "—" }}</td></tr>{% endfor %}</table>
+    {% else %}<div class="val" style="font-size:18px">None in the car's recent alerts</div>{% endif %}
+    <div class="small mut" style="margin-top:8px">Codes beginning BMS concern the high-voltage battery. The car does not report which module a code refers to.</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>State of charge during the window</h2>
+  {% if chart.dots %}
+  <svg viewBox="-40 -8 {{ chart.w + 50 }} {{ chart.h + 26 }}" role="img" aria-label="State of charge over the observation window">
+    {% for p in (0, 50, 100) %}<line x1="0" x2="{{ chart.w }}" y1="{{ chart.h - p / 100 * chart.h }}" y2="{{ chart.h - p / 100 * chart.h }}" stroke="var(--line)"/>
+    <text x="-6" y="{{ chart.h - p / 100 * chart.h + 4 }}" text-anchor="end" font-size="11" fill="var(--mut)">{{ p }}%</text>{% endfor %}
+    <polyline points="{{ chart.line }}" fill="none" stroke="var(--acc)" stroke-width="2"/>
+    {% for x, y, c in chart.dots %}<circle cx="{{ x }}" cy="{{ y }}" r="3" fill="{{ 'var(--ok)' if c else 'var(--acc)' }}"/>{% endfor %}
+  </svg><div class="small mut">Green points: charging.</div>
+  {% else %}<p class="mut">No online samples yet.</p>{% endif %}
+</div>
+
+{% set st = mk.status %}
+<div class="card status {{ st.status }}">
+  <div style="font-size:22px;font-weight:700" class="{{ st.status }}">Battery status: {{ st.value }}</div>
+  <div class="small mut">{{ st.detail }}</div>
+  {% if e.notes %}<ul class="small mut" style="margin:8px 0 0;padding-left:18px">{% for n in e.notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+</div>
+<div class="card">
+  <h2>All metrics</h2>
+  {% for group, items in groups.items() %}
+  <div class="small upper mut" style="margin:{{ '18px' if not loop.first else '0' }} 0 4px">{{ group }}</div>
+  <table><tr><th style="width:30%">Metric</th><th style="width:26%">Result</th><th>Basis</th></tr>
+  {% for m in items %}<tr><td>{{ m.label }}</td>
+    <td><span class="pill {{ m.status }}">{{ m.value }}</span></td>
+    <td class="small mut">{{ m.detail if m.status != 'na' or m.detail else "Requires Fleet Telemetry for this vehicle." }}</td></tr>{% endfor %}
+  </table>
+  {% endfor %}
+</div>
+<p class="small mut">Estimates derived from data the vehicle reports through Tesla's Fleet API during the observation window. Status labels use rule-of-thumb thresholds, not manufacturer limits. Not a workshop diagnosis or a warranty statement.</p>
+{% endblock %}

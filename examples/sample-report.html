@@ -1,0 +1,221 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battery health report · 5YJ3MOCK0NF000001</title>
+<style>
+:root{--bg:#f6f7f8;--card:#fff;--fg:#16181d;--mut:#667085;--line:#e3e6ea;--acc:#0b63ce;--ok:#18794e;--watch:#ad5700;--alert:#c62a2f;--info:#3a5ccc}
+@media (prefers-color-scheme:dark){:root{--bg:#111316;--card:#1a1d21;--fg:#e8eaed;--mut:#9aa4b2;--line:#2b3036;--acc:#6aa9ff;--ok:#4cc38a;--watch:#f1a10d;--alert:#ff6369;--info:#8da4ef}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:920px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+a{color:var(--acc)}.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.04em}tr:last-child td{border-bottom:0}
+.mut{color:var(--mut)}.small{font-size:13px}.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end}
+button,.btn{display:inline-block;padding:8px 14px;border-radius:6px;border:1px solid var(--acc);background:var(--acc);color:#fff;font:inherit;cursor:pointer;text-decoration:none}
+button.sec{background:transparent;color:var(--acc)}
+.pill{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid currentColor;white-space:nowrap}
+.ok{color:var(--ok)}.watch{color:var(--watch)}.alert{color:var(--alert)}.info{color:var(--info)}.na{color:var(--mut)}
+.big{font-size:44px;font-weight:700;line-height:1.1}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+.banner{border-left:4px solid var(--watch);padding:10px 14px;background:var(--card);margin-bottom:16px;border-radius:4px}
+svg{max-width:100%;height:auto}@media print{header form,.noprint{display:none}body{background:#fff}.card{break-inside:avoid}}
+</style>
+</head>
+<body><main>
+<header><h1><a href="#" style="color:inherit;text-decoration:none">Battery health</a></h1><span class="noprint"><a href="sample-report.json">JSON</a> · <a href="javascript:print()">Print / PDF</a></span></header>
+
+
+<style>
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.upper{text-transform:uppercase;letter-spacing:.05em;font-weight:600}.val{font-size:24px;font-weight:700;margin:2px 0}.val.na{font-size:16px;font-weight:500}
+.item{padding:12px 0;border-bottom:1px solid var(--line)}.item:last-child{border-bottom:0;padding-bottom:0}.item:first-child{padding-top:0}
+.bar{height:10px;border-radius:5px;background:var(--line);overflow:hidden;display:flex}.bar i{display:block;height:100%}
+.status{border-left:6px solid var(--mut)}.status.ok{border-color:var(--ok)}.status.watch{border-color:var(--watch)}.status.alert{border-color:var(--alert)}
+</style>
+
+
+<div class="card">
+  <div class="mut small upper">Battery health report</div>
+  <div class="two" style="margin-top:8px">
+    <div>
+      <div style="font-size:20px;font-weight:700">2022 Model 3 <span class="mut" style="font-weight:500">(74d)</span></div>
+      <div class="small mut">VIN: <span class="mono">5YJ3MOCK0NF000001</span> · EV 12345<br>
+        Built in: Fremont, CA, USA<br>
+        Odometer: 98 547 km
+        <br>Wheels: Stiletto19<br>Software: 2026.38.4 mock</div>
+    </div>
+    <div class="small mut">Report ID: <span class="mono">30F8 C303 8CE5</span><br>
+      Observed: 2026-11-28 12:31 UTC → 2026-11-28 12:32 UTC<br>
+      Assessment date: 28 November 2026<br>Valid until (30 days): 28 December 2026<br>
+      Confidence: high · 37 of 39 samples online</div>
+  </div>
+</div>
+
+<div class="two">
+  <div class="card">
+    <h2>State of health (SoH)</h2>
+    
+    <div class="big ok">91.3%</div>
+    <div class="bar" style="margin:10px 0"><i style="width:91.3%;background:currentColor" class="ok"></i></div>
+    <div class="small mut">Share of the original battery capacity that remains. Method: BMS nominal full pack energy vs. capacity when new. Range method 91.7 % (91.2–92.2). Charge-session method 92.0 %.</div>
+    <table style="margin-top:10px">
+      <tbody><tr><td>Original capacity</td><td style="font-weight:600">75.0 kWh</td></tr>
+      <tr><td>Current capacity</td><td class="" style="font-weight:600">68.5 kWh</td></tr>
+      <tr><td>Fast charge percentage</td><td class="" style="font-weight:600">14 %</td></tr><tr><td>Average charge limit (window)</td><td class="" style="font-weight:600">90 %</td></tr><tr><td>Battery temperature (window)</td><td class="" style="font-weight:600">19–28 °C</td></tr>
+    </tbody></table>
+  </div>
+  <div class="card">
+    <h2>Diagnostic data</h2>
+    
+<div class="item"><div class="row"><div class="mut small upper">Moisture Detection</div><span class="pill ok">Good</span></div>
+  <div class="val ">No indication</div>
+  <div class="small mut">Indirect: based on high-voltage isolation resistance (min 3910, median 4000, unit as reported). A falling or unstable value can mean moisture ingress; it is not a moisture sensor.</div></div>
+
+<div class="item"><div class="row"><div class="mut small upper">Delta V (brick voltage spread)</div><span class="pill ok">Good</span></div>
+  <div class="val ">12 mV</div>
+  <div class="small mut">Median gap between highest and lowest brick; worst reading 12 mV over 37 readings.</div></div>
+
+    <div class="item"><div class="mut small upper">Estimated range at 100 %</div>
+      <div class="val">465 km</div>
+      <div class="bar"><i style="width:91.73570019723867%;background:var(--acc)"></i></div>
+      <div class="small mut">When new: 507 km · measured on the fitted wheels (Stiletto19)</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row"><h2 style="margin:0">Brick voltage spread</h2><span class="pill ok">Good</span></div>
+  <div class="val ">Balanced</div>
+  
+  <svg viewBox="-40 -8 690 166" role="img" aria-label="Highest and lowest brick voltage over the window">
+    <line x1="0" x2="640" y1="0" y2="0" stroke="var(--line)"></line><line x1="0" x2="640" y1="140" y2="140" stroke="var(--line)"></line>
+    <text x="-6" y="4" text-anchor="end" font-size="11" fill="var(--mut)">4.31 V</text><text x="-6" y="144" text-anchor="end" font-size="11" fill="var(--mut)">3.88 V</text>
+    <polyline points="0.0,129.6 16.0,126.4 64.0,116.7 80.0,113.4 96.0,110.2 112.0,106.9 128.0,103.7 144.0,100.5 160.0,97.2 176.0,94.0 192.0,90.7 208.0,87.5 224.0,84.3 240.0,81.0 256.0,77.8 272.0,74.5 288.0,71.3 304.0,68.1 320.0,64.8 336.0,61.6 352.0,58.3 368.0,55.1 384.0,51.9 400.0,48.6 416.0,45.4 432.0,42.1 448.0,38.9 464.0,35.6 480.0,32.4 512.0,29.2 528.0,25.9 544.0,22.7 560.0,19.4 576.0,16.2 592.0,13.0 608.0,9.7 624.0,6.5" fill="none" stroke="var(--acc)" stroke-width="2" stroke-dasharray="5 3"></polyline>
+    <polyline points="0.0,133.5 16.0,130.3 64.0,120.6 80.0,117.3 96.0,114.1 112.0,110.8 128.0,107.6 144.0,104.4 160.0,101.1 176.0,97.9 192.0,94.6 208.0,91.4 224.0,88.1 240.0,84.9 256.0,81.7 272.0,78.4 288.0,75.2 304.0,71.9 320.0,68.7 336.0,65.5 352.0,62.2 368.0,59.0 384.0,55.7 400.0,52.5 416.0,49.3 432.0,46.0 448.0,42.8 464.0,39.5 480.0,36.3 512.0,33.1 528.0,29.8 544.0,26.6 560.0,23.3 576.0,20.1 592.0,16.9 608.0,13.6 624.0,10.4" fill="none" stroke="var(--ok)" stroke-width="2"></polyline>
+    <text x="0" y="156" font-size="11" fill="var(--mut)">2026-11-28 12:31 UTC</text><text x="640" y="156" text-anchor="end" font-size="11" fill="var(--mut)">2026-11-28 12:32 UTC</text>
+  </svg>
+  <div class="small mut">Dashed: highest brick. Solid: lowest brick. The gap between the lines is Delta V; it normally widens near empty and full. Weakest brick sits 0.7 points below pack state of charge.</div>
+  
+</div>
+
+<div class="two">
+  <div class="card">
+    <h2>Energy use in the window</h2>
+    
+    <div class="val">5.6 kWh</div>
+    
+    <div class="bar"><i style="width:76.78571428571429%;background:var(--acc)"></i><i style="width:25.0%;background:var(--watch)"></i></div>
+    <table style="margin-top:8px"><tbody><tr><td>Driving</td><td style="font-weight:600">4.3 kWh</td></tr>
+      <tr><td>Standing (standby, sentry, climate, preconditioning)</td><td style="font-weight:600">1.4 kWh</td></tr>
+      <tr><td>Recovered by regenerative braking</td><td style="font-weight:600">+0.8 kWh</td></tr></tbody></table>
+    
+    <div class="item" style="margin-top:8px"><div class="small mut">Lifetime average consumption: <b>162 Wh/km</b></div></div>
+  </div>
+  <div class="card">
+    <h2>Charging (lifetime)</h2>
+    
+    <div class="val">16 878.0 kWh</div>
+    <div class="bar"><i style="width:86.31354425879843%;background:var(--acc)"></i><i style="width:13.686455741201565%;background:var(--watch)"></i></div>
+    <table style="margin-top:8px"><tbody><tr><td>AC charging</td><td style="font-weight:600">14 568.0 kWh</td></tr>
+      <tr><td>DC fast charging</td><td style="font-weight:600">2 310.0 kWh</td></tr></tbody></table>
+    
+    <div class="item" style="margin-top:8px"><div class="small mut">In the window: <b>AC, peak 11 kW</b>. Observed in the window. 3-phase supply.</div></div>
+  </div>
+</div>
+
+<div class="two">
+  <div class="card">
+<div class="item"><div class="row"><div class="mut small upper">Motor Integrity</div><span class="pill ok">Good</span></div>
+  <div class="val ">No fault indicated</div>
+  <div class="small mut">Peak stator temperature F 31 °C, R 34 °C. High-voltage interlock: HvilStatusOk. Indicators only; the API has no direct motor health value.</div></div>
+
+<div class="item"><div class="row"><div class="mut small upper">Internal Motor Leakage</div><span class="pill ok">Good</span></div>
+  <div class="val ">No indication</div>
+  <div class="small mut">Indirect: isolation resistance while driving is 103 % of the parked value. A large drop with the drive units energised points at the motor/inverter side.</div></div>
+
+<div class="item"><div class="row"><div class="mut small upper">Battery Cell Degradation</div><span class="pill ok">Good</span></div>
+  <div class="val ">Even</div>
+  <div class="small mut">Brick 37 had the lowest voltage in 73 % of 37 readings.</div></div>
+</div>
+  <div class="card">
+    <div class="row"><h2 style="margin:0">Fault codes reported by the car</h2><span class="pill watch">Watch</span></div>
+    
+    <table style="margin-top:8px"><tbody><tr><th>Code</th><th>When</th><th>Audience</th></tr>
+    <tr><td><span class="mono watch">BMS_a066</span><div class="small mut">Maximum charge level and range may be reduced</div></td>
+      <td class="small">2026-11-27T07:12:00Z</td><td class="small">service</td></tr></tbody></table>
+    
+    <div class="small mut" style="margin-top:8px">Codes beginning BMS concern the high-voltage battery. The car does not report which module a code refers to.</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>State of charge during the window</h2>
+  
+  <svg viewBox="-40 -8 690 166" role="img" aria-label="State of charge over the observation window">
+    <line x1="0" x2="640" y1="140.0" y2="140.0" stroke="var(--line)"></line>
+    <text x="-6" y="144.0" text-anchor="end" font-size="11" fill="var(--mut)">0%</text><line x1="0" x2="640" y1="70.0" y2="70.0" stroke="var(--line)"></line>
+    <text x="-6" y="74.0" text-anchor="end" font-size="11" fill="var(--mut)">50%</text><line x1="0" x2="640" y1="0.0" y2="0.0" stroke="var(--line)"></line>
+    <text x="-6" y="4.0" text-anchor="end" font-size="11" fill="var(--mut)">100%</text>
+    <polyline points="0.0,72.8 16.0,77.0 64.0,81.2 80.0,75.6 96.0,70.0 112.0,64.4 128.0,58.8 144.0,53.2 160.0,47.6 176.0,42.0 192.0,36.4 208.0,30.8 224.0,25.2 240.0,19.6 256.0,14.0 272.0,14.0 288.0,14.0 304.0,14.0 320.0,14.0 336.0,14.0 352.0,14.0 368.0,14.0 384.0,14.0 400.0,14.0 416.0,14.0 432.0,14.0 448.0,14.0 464.0,14.0 480.0,14.0 512.0,14.0 528.0,14.0 544.0,14.0 560.0,14.0 576.0,14.0 592.0,14.0 608.0,14.0 624.0,14.0" fill="none" stroke="var(--acc)" stroke-width="2"></polyline>
+    <circle cx="0.0" cy="72.8" r="3" fill="var(--acc)"></circle><circle cx="16.0" cy="77.0" r="3" fill="var(--acc)"></circle><circle cx="64.0" cy="81.2" r="3" fill="var(--ok)"></circle><circle cx="80.0" cy="75.6" r="3" fill="var(--ok)"></circle><circle cx="96.0" cy="70.0" r="3" fill="var(--ok)"></circle><circle cx="112.0" cy="64.4" r="3" fill="var(--ok)"></circle><circle cx="128.0" cy="58.8" r="3" fill="var(--ok)"></circle><circle cx="144.0" cy="53.2" r="3" fill="var(--ok)"></circle><circle cx="160.0" cy="47.6" r="3" fill="var(--ok)"></circle><circle cx="176.0" cy="42.0" r="3" fill="var(--ok)"></circle><circle cx="192.0" cy="36.4" r="3" fill="var(--ok)"></circle><circle cx="208.0" cy="30.8" r="3" fill="var(--ok)"></circle><circle cx="224.0" cy="25.2" r="3" fill="var(--ok)"></circle><circle cx="240.0" cy="19.6" r="3" fill="var(--ok)"></circle><circle cx="256.0" cy="14.0" r="3" fill="var(--ok)"></circle><circle cx="272.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="288.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="304.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="320.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="336.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="352.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="368.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="384.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="400.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="416.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="432.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="448.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="464.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="480.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="512.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="528.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="544.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="560.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="576.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="592.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="608.0" cy="14.0" r="3" fill="var(--acc)"></circle><circle cx="624.0" cy="14.0" r="3" fill="var(--acc)"></circle>
+  </svg><div class="small mut">Green points: charging.</div>
+  
+</div>
+
+
+<div class="card status watch">
+  <div style="font-size:22px;font-weight:700" class="watch">Battery status: Fair</div>
+  <div class="small mut">Confidence in the estimate: high. 1 recent BMS alert(s).</div>
+  
+</div>
+<div class="card">
+  <h2>All metrics</h2>
+  
+  <div class="small upper mut" style="margin:0 0 4px">Battery performance &amp; condition</div>
+  <table><tbody><tr><th style="width:30%">Metric</th><th style="width:26%">Result</th><th>Basis</th></tr>
+  <tr><td>State of Health (SoH)</td>
+    <td><span class="pill ok">91.3 %</span></td>
+    <td class="small mut">Method: BMS nominal full pack energy vs. capacity when new. Range method 91.7 % (91.2–92.2). Charge-session method 92.0 %.</td></tr><tr><td>Battery Capacity</td>
+    <td><span class="pill info">68.5 kWh</span></td>
+    <td class="small mut">Nominal full pack energy reported by the BMS. When new: 75.0 kWh.</td></tr><tr><td>Estimated Range</td>
+    <td><span class="pill info">465 km</span></td>
+    <td class="small mut">Rated range extrapolated to 100 % charge. When new: 507 km.</td></tr><tr><td>Battery Status</td>
+    <td><span class="pill watch">Fair</span></td>
+    <td class="small mut">Confidence in the estimate: high. 1 recent BMS alert(s).</td></tr>
+  </tbody></table>
+  
+  <div class="small upper mut" style="margin:18px 0 4px">Advanced battery intelligence</div>
+  <table><tbody><tr><th style="width:30%">Metric</th><th style="width:26%">Result</th><th>Basis</th></tr>
+  <tr><td>Fast Charge Percentage</td>
+    <td><span class="pill ok">14 %</span></td>
+    <td class="small mut">2310 kWh of 16878 kWh lifetime charging energy came from DC fast charging.</td></tr><tr><td>Average Charge Limit</td>
+    <td><span class="pill ok">90 %</span></td>
+    <td class="small mut">Average of the limit set during the observation window only; the car does not expose its history.</td></tr><tr><td>Battery Temperature</td>
+    <td><span class="pill ok">19–28 °C</span></td>
+    <td class="small mut">Largest difference between hottest and coldest module at one moment: 4.5 °C.</td></tr><tr><td>Moisture Detection</td>
+    <td><span class="pill ok">No indication</span></td>
+    <td class="small mut">Indirect: based on high-voltage isolation resistance (min 3910, median 4000, unit as reported). A falling or unstable value can mean moisture ingress; it is not a moisture sensor.</td></tr><tr><td>Cell Balance</td>
+    <td><span class="pill ok">Balanced</span></td>
+    <td class="small mut">Weakest brick sits 0.7 points below pack state of charge.</td></tr><tr><td>Cell Voltage Spread</td>
+    <td><span class="pill ok">12 mV</span></td>
+    <td class="small mut">Median gap between highest and lowest brick; worst reading 12 mV over 37 readings.</td></tr><tr><td>Energy Consumption</td>
+    <td><span class="pill info">162 Wh/km</span></td>
+    <td class="small mut">Lifetime average: total energy discharged from the pack divided by odometer (includes climate and standby use).</td></tr><tr><td>Charging</td>
+    <td><span class="pill info">AC, peak 11 kW</span></td>
+    <td class="small mut">Observed in the window. 3-phase supply.</td></tr><tr><td>Motor Integrity</td>
+    <td><span class="pill ok">No fault indicated</span></td>
+    <td class="small mut">Peak stator temperature F 31 °C, R 34 °C. High-voltage interlock: HvilStatusOk. Indicators only; the API has no direct motor health value.</td></tr><tr><td>Internal Motor Leakage</td>
+    <td><span class="pill ok">No indication</span></td>
+    <td class="small mut">Indirect: isolation resistance while driving is 103 % of the parked value. A large drop with the drive units energised points at the motor/inverter side.</td></tr><tr><td>Battery Cell Degradation</td>
+    <td><span class="pill ok">Even</span></td>
+    <td class="small mut">Brick 37 had the lowest voltage in 73 % of 37 readings.</td></tr><tr><td>BMS Fault Codes</td>
+    <td><span class="pill watch">1 BMS / 1 total</span></td>
+    <td class="small mut">BMS_a066 (2026-11-27T07:12:00Z)</td></tr>
+  </tbody></table>
+  
+</div>
+<p class="small mut">Estimates derived from data the vehicle reports through Tesla's Fleet API during the observation window. Status labels use rule-of-thumb thresholds, not manufacturer limits. Not a workshop diagnosis or a warranty statement.</p>
+
+</main></body></html>

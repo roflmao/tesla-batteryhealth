@@ -1,0 +1,33 @@
+{
+  "_comment": "The 'fields' block for POST /api/1/vehicles/fleet_telemetry_config (sent through the vehicle-command proxy). These are the signals the Advanced and Complete metrics read. Intervals are seconds.",
+  "fields": {
+    "NominalFullPackEnergyKwh": {"interval_seconds": 600},
+    "EnergyRemaining": {"interval_seconds": 300},
+    "Soc": {"interval_seconds": 300},
+    "BrickSocMinPercent": {"interval_seconds": 300},
+    "BrickVoltageMax": {"interval_seconds": 300},
+    "BrickVoltageMin": {"interval_seconds": 300},
+    "NumBrickVoltageMax": {"interval_seconds": 300},
+    "NumBrickVoltageMin": {"interval_seconds": 300},
+    "ModuleTempMax": {"interval_seconds": 300},
+    "ModuleTempMin": {"interval_seconds": 300},
+    "IsolationResistance": {"interval_seconds": 300},
+    "ChargeLimitSoc": {"interval_seconds": 1800},
+    "LifetimeDcChargeEnergyKwh": {"interval_seconds": 3600},
+    "LifetimeEnergyChargedKwh": {"interval_seconds": 3600},
+    "LifetimeEnergyUsed": {"interval_seconds": 600},
+    "LifetimeEnergyGainedRegen": {"interval_seconds": 600},
+    "Odometer": {"interval_seconds": 600},
+    "ACChargingPower": {"interval_seconds": 300},
+    "DCChargingPower": {"interval_seconds": 300},
+    "ChargerPhases": {"interval_seconds": 1800},
+    "FastChargerPresent": {"interval_seconds": 1800},
+    "DiStatorTempF": {"interval_seconds": 300},
+    "DiStatorTempR": {"interval_seconds": 300},
+    "DiInverterTF": {"interval_seconds": 300},
+    "DiInverterTR": {"interval_seconds": 300},
+    "Hvil": {"interval_seconds": 600},
+    "VehicleSpeed": {"interval_seconds": 300}
+  },
+  "alert_types": ["service"]
+}

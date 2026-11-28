@@ -1,0 +1,321 @@
+"""Battery health assessment tool for Tesla vehicles (Fleet API). FastAPI entry point."""
+import asyncio
+import base64
+import hmac
+import json
+import math
+import os
+import secrets
+import time
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
+
+from . import db, runlog, telemetry, worker
+from .config import DEV_SECRET_KEY, cfg
+from .mock import MockClient
+from urllib.parse import urlencode, urlsplit
+
+from .tesla import AuthExpired, TeslaClient, TeslaError, token_subject
+
+client = MockClient() if cfg.mock else TeslaClient()
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
+templates.env.filters["d"] = lambda ts: datetime.fromtimestamp(ts, timezone.utc).strftime("%d %B %Y")
+templates.env.filters["dt"] = lambda ts: datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+INGEST_TOKEN = os.environ.get("BH_INGEST_TOKEN", "")
+OPEN_PATHS = ("/healthz", "/.well-known/", "/ingest/")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if not cfg.mock and (cfg.secret_key == DEV_SECRET_KEY or len(cfg.secret_key) < 16):
+        raise RuntimeError("BH_SECRET_KEY must be set to a random value of at least 16 characters "
+                           "(it signs sessions and encrypts stored tokens). Only BH_MOCK=1 runs without it.")
+    db.init()
+    tasks = [asyncio.create_task(worker.run(client))]
+    if cfg.telemetry_zmq:
+        tasks.append(asyncio.create_task(telemetry.subscribe()))
+    yield
+    for task in tasks:
+        task.cancel()
+
+
+app = FastAPI(title="Battery health", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+
+@app.middleware("http")
+async def basic_auth(request: Request, call_next):
+    if cfg.basic_auth and not request.url.path.startswith(OPEN_PATHS):
+        hdr = request.headers.get("authorization", "")
+        ok = False
+        if hdr.lower().startswith("basic "):
+            try:
+                ok = hmac.compare_digest(base64.b64decode(hdr[6:]).decode(), cfg.basic_auth)
+            except Exception:
+                ok = False
+        if not ok:
+            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="batteryhealth"'})
+    return await call_next(request)
+
+
+app.add_middleware(SessionMiddleware, secret_key=cfg.secret_key, same_site="lax",
+                   https_only=cfg.redirect_uri.startswith("https://"))
+
+
+def account_id(request: Request) -> int | None:
+    return request.session.get("account_id")
+
+
+def get_assessment(request: Request, aid: int):
+    with db.conn() as c:
+        a = c.execute("SELECT * FROM assessments WHERE id=? AND account_id=?", (aid, account_id(request) or -1)).fetchone()
+    if a is None:
+        raise HTTPException(404)
+    return a
+
+
+# ---- pages ---------------------------------------------------------------
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    acc, vehicles, error = account_id(request), [], None
+    assessments = []
+    if acc:
+        try:
+            vehicles = await client.vehicles(acc)
+        except AuthExpired:
+            request.session.clear()
+            return RedirectResponse("/", 303)
+        except Exception as e:
+            error = f"Could not list vehicles: {e}"
+        with db.conn() as c:
+            assessments = c.execute("SELECT * FROM assessments WHERE account_id=? ORDER BY id DESC", (acc,)).fetchall()
+    return templates.TemplateResponse(request, "index.html", {
+        "connected": bool(acc), "vehicles": vehicles, "assessments": assessments, "error": error,
+        "cfg": cfg, "now": int(time.time())})
+
+
+@app.get("/auth/login")
+async def login(request: Request):
+    state = secrets.token_urlsafe(24)
+    request.session["oauth_state"] = state
+    return RedirectResponse(client.authorize_url(state), 303)
+
+
+@app.get("/auth/callback")
+async def callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    expected = request.session.pop("oauth_state", None)
+    if error:
+        raise HTTPException(400, f"Tesla returned: {error}")
+    if not code or not expected or not hmac.compare_digest(state, expected):
+        raise HTTPException(400, "Invalid OAuth state")
+    tok = await client.exchange_code(code)
+    base = await client.region_base(tok["access_token"])
+    request.session["account_id"] = db.save_tokens(None, base, tok, token_subject(tok))
+    return RedirectResponse("/", 303)
+
+
+@app.post("/auth/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/", 303)
+
+
+@app.post("/assessments")
+async def start(request: Request, vin: str = Form(...), name: str = Form(""), ref_range_km: float = Form(...),
+                ref_capacity_kwh: str = Form(""), wake: str = Form("")):
+    acc = account_id(request)
+    if not acc:
+        raise HTTPException(401)
+    if not 100 <= ref_range_km <= 1000:        # written this way so NaN is rejected too
+        raise HTTPException(400, "Reference range must be 100-1000 km")
+    cap = None
+    if ref_capacity_kwh.strip():
+        try:
+            cap = float(ref_capacity_kwh.replace(",", "."))
+        except ValueError:
+            cap = math.nan
+        if not 10 <= cap <= 250:
+            raise HTTPException(400, "Capacity when new must be 10-250 kWh")
+    if vin not in {v.get("vin") for v in await client.vehicles(acc)}:
+        raise HTTPException(403, "VIN is not on this Tesla account")
+    now = int(time.time())
+    with db.conn() as c:
+        # One running assessment per car: a second one would double the billable polling.
+        # No await between this check and the insert, so two submissions cannot both pass.
+        dup = c.execute("SELECT * FROM assessments WHERE account_id=? AND vin=? AND status='running'", (acc, vin)).fetchone()
+        if dup and (dup["ref_range_km"], dup["ref_capacity_kwh"]) == (ref_range_km, cap):
+            return RedirectResponse(f"/assessments/{dup['id']}", 303)      # the form was submitted twice
+        if dup:
+            raise HTTPException(409, f"Assessment {dup['id']} is already running for this vehicle with other "
+                                     "reference values. Finish it before starting a new one.")
+        cur = c.execute(
+            "INSERT INTO assessments(account_id, vin, name, ref_range_km, ref_capacity_kwh, started_at, ends_at) VALUES (?,?,?,?,?,?,?)",
+            (acc, vin, name, ref_range_km, cap, now, now + cfg.window_seconds))
+        aid = cur.lastrowid
+        a = c.execute("SELECT * FROM assessments WHERE id=?", (aid,)).fetchone()
+    runlog.record(a, "start", {"vin": vin, "ref_range_km": ref_range_km, "ref_capacity_kwh": cap,
+                               "started_at": now, "ends_at": a["ends_at"]})
+    if wake and cfg.allow_wake:
+        try:
+            await client.wake(acc, vin)
+        except Exception:
+            pass
+    asyncio.create_task(worker.fetch_alerts(client, a))
+    return RedirectResponse(f"/assessments/{aid}", 303)
+
+
+def _report(a) -> dict:
+    return json.loads(a["result_json"]) if a["status"] == "done" and a["result_json"] else worker.build_report(a)
+
+
+def _chart(samples: list[dict], start: int, end: int, w: int = 640, h: int = 140) -> dict:
+    pts = [(s["ts"], s["battery_level"], s["charging_state"]) for s in samples if s["battery_level"] is not None]
+    span = max(end - start, 1)
+    xy = [(round((t - start) / span * w, 1), round(h - lvl / 100 * h, 1), cs == "Charging") for t, lvl, cs in pts]
+    return {"w": w, "h": h, "line": " ".join(f"{x},{y}" for x, y, _ in xy), "dots": xy}
+
+
+def _brick_chart(rows: list, start: int, end: int, w: int = 640, h: int = 140) -> dict | None:
+    if len(rows) < 2:
+        return None
+    lo, hi = min(r[2] for r in rows) - 0.02, max(r[1] for r in rows) + 0.02
+    span, rng = max(end - start, 1), max(hi - lo, 0.01)
+    fx = lambda t: round((t - start) / span * w, 1)
+    fy = lambda v: round(h - (v - lo) / rng * h, 1)
+    return {"w": w, "h": h, "lo": round(lo, 2), "hi": round(hi, 2),
+            "max": " ".join(f"{fx(t)},{fy(a)}" for t, a, _ in rows),
+            "min": " ".join(f"{fx(t)},{fy(b)}" for t, _, b in rows)}
+
+
+@app.get("/assessments/{aid}", response_class=HTMLResponse)
+async def report(request: Request, aid: int):
+    a = get_assessment(request, aid)
+    rep = _report(a)
+    mk = {m["key"]: m for m in rep["metrics"]}
+    groups: dict[str, list] = {}
+    for m in rep["metrics"]:
+        groups.setdefault(m["group"], []).append(m)
+    return templates.TemplateResponse(request, "report.html", {
+        "a": a, "rep": rep, "mk": mk, "groups": groups, "valid_until": a["ends_at"] + 30 * 86400,
+        "bricks": _brick_chart(rep.get("bricks") or [], a["started_at"], a["ends_at"]), "chart": _chart(rep["samples"], a["started_at"], a["ends_at"]),
+        "now": int(time.time())})
+
+
+@app.get("/assessments/{aid}/report.json")
+async def report_json(request: Request, aid: int):
+    a = get_assessment(request, aid)
+    return JSONResponse({"id": a["id"], "vin": a["vin"], "status": a["status"],
+                         "started_at": a["started_at"], "ends_at": a["ends_at"], **_report(a)})
+
+
+@app.post("/assessments/{aid}/finish")
+async def finish(request: Request, aid: int):
+    """End the window now and freeze the report."""
+    a = get_assessment(request, aid)
+    if a["status"] == "running":
+        with db.conn() as c:
+            c.execute("UPDATE assessments SET ends_at=? WHERE id=?", (int(time.time()), aid))
+    return RedirectResponse(f"/assessments/{aid}", 303)
+
+
+# ---- Fleet Telemetry setup -------------------------------------------------
+async def own_vin(request: Request, vin: str) -> int:
+    """The signed-in account, after checking with Tesla that the car is on it."""
+    acc = account_id(request)
+    if not acc:
+        raise HTTPException(401)
+    if vin not in {v.get("vin") for v in await client.vehicles(acc)}:
+        raise HTTPException(403, "VIN is not on this Tesla account")
+    return acc
+
+
+@app.get("/telemetry/{vin}", response_class=HTMLResponse)
+async def telemetry_page(request: Request, vin: str, msg: str = ""):
+    acc = await own_vin(request, vin)
+    status, error = {}, None
+    try:
+        fs = await client.fleet_status(acc, vin)
+        tc = await client.telemetry_config(acc, vin)
+        status = {"key_paired": vin in (fs.get("key_paired_vins") or []),
+                  "info": (fs.get("vehicle_info") or {}).get(vin) or {},
+                  "configured": bool(tc.get("config")), "synced": bool(tc.get("synced")),
+                  "limit_reached": bool(tc.get("limit_reached")),
+                  "hostname": (tc.get("config") or {}).get("hostname"),
+                  "fields": len((tc.get("config") or {}).get("fields") or {})}
+        if status["configured"]:
+            errs = await client.telemetry_errors(acc, vin)
+            status["errors"] = (errs.get("fleet_telemetry_errors") or [])[:10]
+    except AuthExpired:
+        request.session.clear()
+        return RedirectResponse("/", 303)
+    except TeslaError as e:
+        error = str(e)
+    with db.conn() as c:
+        last = c.execute("SELECT max(ts) AS ts, count(*) AS n FROM telemetry WHERE vin=?", (vin,)).fetchone()
+    return templates.TemplateResponse(request, "telemetry.html", {
+        "vin": vin, "status": status, "error": error, "msg": msg, "ready": telemetry.ready(), "cfg": cfg,
+        "pair_url": f"https://tesla.com/_ak/{urlsplit(cfg.redirect_uri).hostname}",
+        "received": last["n"], "last_ts": last["ts"]})
+
+
+@app.post("/telemetry/{vin}/enable")
+async def telemetry_enable(request: Request, vin: str):
+    acc = await own_vin(request, vin)
+    if not telemetry.ready():
+        raise HTTPException(409, "Fleet Telemetry is not configured on this server")
+    try:
+        res = await client.telemetry_enable(acc, vin, telemetry.build_config())
+    except TeslaError as e:
+        raise HTTPException(502, f"Tesla refused the configuration: {e}")
+    skipped = [reason for reason, vins in (res.get("skipped_vehicles") or {}).items() if vin in (vins or [])]
+    msg = f"Not applied: {', '.join(skipped)}" if skipped else "Configuration sent. The car adopts it the next time it is online."
+    return RedirectResponse(f"/telemetry/{vin}?" + urlencode({"msg": msg}), 303)
+
+
+@app.post("/telemetry/{vin}/disable")
+async def telemetry_disable(request: Request, vin: str):
+    acc = await own_vin(request, vin)
+    try:
+        await client.telemetry_disable(acc, vin)
+    except TeslaError as e:
+        raise HTTPException(502, f"Tesla refused the request: {e}")
+    return RedirectResponse(f"/telemetry/{vin}?" + urlencode({"msg": "Streaming configuration removed."}), 303)
+
+
+# ---- machine endpoints ---------------------------------------------------
+@app.post("/ingest/telemetry")
+async def ingest(request: Request):
+    """Accepts Fleet Telemetry records, one object or a list.
+
+    Flat:     {"vin": "...", "ts": 1764230400, "data": {"BrickVoltageMax": 4.01, ...}}
+    Decoded:  {"vin": "...", "createdAt": "2026-11-27T08:00:00Z",
+               "data": [{"key": "BrickVoltageMax", "value": {"doubleValue": 4.01}}, ...]}
+    """
+    if not INGEST_TOKEN or not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {INGEST_TOKEN}"):
+        raise HTTPException(401)
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Body must be JSON")
+    if not isinstance(body, (dict, list)):
+        raise HTTPException(400, "Body must be a record or a list of records")
+    return telemetry.store(body if isinstance(body, list) else [body])
+
+
+@app.get("/.well-known/appspecific/com.tesla.3p.public-key.pem")
+async def public_key():
+    """Tesla fetches this during partner registration and virtual key pairing."""
+    try:
+        with open(cfg.public_key_path) as f:
+            return PlainTextResponse(f.read(), media_type="application/x-pem-file")
+    except FileNotFoundError:
+        raise HTTPException(404)
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True, "mock": cfg.mock}
