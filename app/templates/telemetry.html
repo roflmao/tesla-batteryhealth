@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Fleet Telemetry · {{ vin }}{% endblock %}
+{% macro step(done, title) %}<tr><td style="width:28px"><span class="pill {{ 'ok' if done else 'na' }}">{{ '✓' if done else '·' }}</span></td><td><b>{{ title }}</b><div class="small mut">{{ caller() }}</div></td></tr>{% endmacro %}
+{% block body %}
+{% if msg %}<div class="banner">{{ msg }}</div>{% endif %}
+{% if error %}<div class="banner">Could not read the car's telemetry state from Tesla: {{ error }}</div>{% endif %}
+<div class="card">
+  <h2>Fleet Telemetry</h2>
+  <div class="small mut" style="margin-bottom:10px">VIN: <span class="mono">{{ vin }}</span>{% if status.info and status.info.firmware_version %} · software {{ status.info.firmware_version }}{% endif %}</div>
+  <table>
+    {% call step(ready, "Server configured") %}{% if ready %}Cars stream to <span class="mono">{{ cfg.telemetry_hostname }}:{{ cfg.telemetry_port }}</span>.{% else %}Set <span class="mono">BH_TELEMETRY_HOSTNAME</span> and <span class="mono">BH_COMMAND_PROXY_URL</span>; see "Fleet Telemetry" in the README.{% endif %}{% endcall %}
+    {% call step(status.key_paired, "Virtual key on the car") %}{% if status.key_paired %}This application's key is paired.{% else %}Open <a href="{{ pair_url }}">{{ pair_url }}</a> on a phone with the Tesla app, signed in as the car's owner, and approve the key.{% endif %}{% endcall %}
+    {% call step(status.configured, "Configuration sent") %}{% if status.configured %}{{ status.fields }} signals to <span class="mono">{{ status.hostname }}</span>.{% elif status.limit_reached %}The car already streams to its maximum number of applications.{% else %}Not sent yet.{% endif %}{% endcall %}
+    {% call step(status.synced, "Adopted by the car") %}{% if status.synced %}The car has the configuration.{% else %}The car picks it up the next time it is online.{% endif %}{% endcall %}
+    {% call step(received > 0, "Data arriving") %}{% if received %}{{ received }} values stored, latest {{ last_ts|dt }}.{% else %}Nothing stored yet. Values are kept only while the car has a running assessment.{% endif %}{% endcall %}
+  </table>
+  <div style="margin-top:14px;display:flex;gap:8px">
+    <form method="post" action="/telemetry/{{ vin }}/enable"><button {{ 'disabled' if not ready }}>{{ 'Send configuration again' if status.configured else 'Enable telemetry' }}</button></form>
+    {% if status.configured %}<form method="post" action="/telemetry/{{ vin }}/disable"><button class="sec">Disable</button></form>{% endif %}
+  </div>
+</div>
+{% if status.errors %}
+<div class="card"><h2>Errors reported by the car</h2>
+  <table><tr><th>When</th><th>Error</th></tr>{% for e in status.errors %}<tr><td class="small">{{ e.created_at or "—" }}</td><td class="small"><span class="mono">{{ e.error_name or e.name or "" }}</span> {{ e.error or "" }}</td></tr>{% endfor %}</table>
+</div>
+{% endif %}
+<p class="small mut"><a href="/">Back</a></p>
+{% endblock %}

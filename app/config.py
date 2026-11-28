@@ -37,6 +37,14 @@ class Config:
     # Fleet Telemetry buffered in the car can arrive after the window closed; within this long
     # after the end, records timestamped inside the window rebuild the finished report.
     late_telemetry_seconds: int = field(default_factory=lambda: int(_env("LATE_TELEMETRY_SECONDS", str(6 * 3600))))
+    # Fleet Telemetry (optional). The app reads records from fleet-telemetry's ZMQ publisher and
+    # sends the car its streaming configuration through Tesla's vehicle-command proxy.
+    telemetry_zmq: str = field(default_factory=lambda: _env("TELEMETRY_ZMQ"))                # tcp://fleet-telemetry:5284
+    telemetry_hostname: str = field(default_factory=lambda: _env("TELEMETRY_HOSTNAME"))      # where the car connects
+    telemetry_port: int = field(default_factory=lambda: int(_env("TELEMETRY_PORT", "443")))
+    telemetry_ca_path: str = field(default_factory=lambda: _env("TELEMETRY_CA_PATH"))        # chain the car checks the server against
+    command_proxy_url: str = field(default_factory=lambda: _env("COMMAND_PROXY_URL"))        # https://vehicle-command:4443
+    command_proxy_ca: str = field(default_factory=lambda: _env("COMMAND_PROXY_CA"))          # the proxy's own TLS certificate
     allow_wake: bool = field(default_factory=lambda: _env("ALLOW_WAKE", "0") == "1")
 
 

@@ -25,6 +25,7 @@
     </div>
   </form>
   <p class="small mut">Use the range the car displayed at 100 % when it was new, for this exact variant and wheel size. Best results: let the car charge at least 20 points, ideally to above 80 %, during the window.</p>
+  <p class="small mut">Fleet Telemetry (cell voltages, temperatures, charging split, motor indicators): {% for v in vehicles %}<a href="/telemetry/{{ v.vin }}">set up for {{ v.display_name or v.vin }}</a>{{ ", " if not loop.last }}{% endfor %}</p>
   {% else %}<p class="mut">No vehicles on this account.</p>{% endif %}
 </div>
 <div class="card">

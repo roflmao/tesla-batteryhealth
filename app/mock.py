@@ -12,6 +12,7 @@ VIN = "5YJ3MOCK0NF000001"
 class MockClient:
     def __init__(self) -> None:
         self.step = 0
+        self.streaming: dict[str, dict] = {}       # vin -> telemetry config "on the car"
 
     def authorize_url(self, state: str) -> str:
         return f"/auth/callback?code=mock&state={state}"
@@ -80,6 +81,24 @@ class MockClient:
             "DiStatorTempR": 34.0, "DiStatorTempF": 31.0, "DiInverterTR": 29.0, "Hvil": "HvilStatusOk",
             "VehicleSpeed": 62 if t < 2 else 0,
         }
+
+    async def fleet_status(self, account_id: int, vin: str) -> dict:
+        return {"key_paired_vins": [vin], "unpaired_vins": [],
+                "vehicle_info": {vin: {"firmware_version": "2026.38.4 mock", "fleet_telemetry_version": "1.1.0"}}}
+
+    async def telemetry_config(self, account_id: int, vin: str) -> dict:
+        return {"synced": vin in self.streaming, "config": self.streaming.get(vin), "limit_reached": False}
+
+    async def telemetry_errors(self, account_id: int, vin: str) -> dict:
+        return {"fleet_telemetry_errors": []}
+
+    async def telemetry_enable(self, account_id: int, vin: str, config: dict) -> dict:
+        self.streaming[vin] = config
+        return {"updated_vehicles": 1, "skipped_vehicles": {}}
+
+    async def telemetry_disable(self, account_id: int, vin: str) -> dict:
+        self.streaming.pop(vin, None)
+        return {"updated_vehicles": 1}
 
     async def wake(self, account_id: int, vin: str) -> None:
         return None

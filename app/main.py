@@ -15,10 +15,12 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import db, runlog, worker
+from . import db, runlog, telemetry, worker
 from .config import DEV_SECRET_KEY, cfg
 from .mock import MockClient
-from .tesla import AuthExpired, TeslaClient, token_subject
+from urllib.parse import urlencode, urlsplit
+
+from .tesla import AuthExpired, TeslaClient, TeslaError, token_subject
 
 client = MockClient() if cfg.mock else TeslaClient()
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
@@ -34,9 +36,12 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("BH_SECRET_KEY must be set to a random value of at least 16 characters "
                            "(it signs sessions and encrypts stored tokens). Only BH_MOCK=1 runs without it.")
     db.init()
-    task = asyncio.create_task(worker.run(client))
+    tasks = [asyncio.create_task(worker.run(client))]
+    if cfg.telemetry_zmq:
+        tasks.append(asyncio.create_task(telemetry.subscribe()))
     yield
-    task.cancel()
+    for task in tasks:
+        task.cancel()
 
 
 app = FastAPI(title="Battery health", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -217,6 +222,70 @@ async def finish(request: Request, aid: int):
     return RedirectResponse(f"/assessments/{aid}", 303)
 
 
+# ---- Fleet Telemetry setup -------------------------------------------------
+async def own_vin(request: Request, vin: str) -> int:
+    """The signed-in account, after checking with Tesla that the car is on it."""
+    acc = account_id(request)
+    if not acc:
+        raise HTTPException(401)
+    if vin not in {v.get("vin") for v in await client.vehicles(acc)}:
+        raise HTTPException(403, "VIN is not on this Tesla account")
+    return acc
+
+
+@app.get("/telemetry/{vin}", response_class=HTMLResponse)
+async def telemetry_page(request: Request, vin: str, msg: str = ""):
+    acc = await own_vin(request, vin)
+    status, error = {}, None
+    try:
+        fs = await client.fleet_status(acc, vin)
+        tc = await client.telemetry_config(acc, vin)
+        status = {"key_paired": vin in (fs.get("key_paired_vins") or []),
+                  "info": (fs.get("vehicle_info") or {}).get(vin) or {},
+                  "configured": bool(tc.get("config")), "synced": bool(tc.get("synced")),
+                  "limit_reached": bool(tc.get("limit_reached")),
+                  "hostname": (tc.get("config") or {}).get("hostname"),
+                  "fields": len((tc.get("config") or {}).get("fields") or {})}
+        if status["configured"]:
+            errs = await client.telemetry_errors(acc, vin)
+            status["errors"] = (errs.get("fleet_telemetry_errors") or [])[:10]
+    except AuthExpired:
+        request.session.clear()
+        return RedirectResponse("/", 303)
+    except TeslaError as e:
+        error = str(e)
+    with db.conn() as c:
+        last = c.execute("SELECT max(ts) AS ts, count(*) AS n FROM telemetry WHERE vin=?", (vin,)).fetchone()
+    return templates.TemplateResponse(request, "telemetry.html", {
+        "vin": vin, "status": status, "error": error, "msg": msg, "ready": telemetry.ready(), "cfg": cfg,
+        "pair_url": f"https://tesla.com/_ak/{urlsplit(cfg.redirect_uri).hostname}",
+        "received": last["n"], "last_ts": last["ts"]})
+
+
+@app.post("/telemetry/{vin}/enable")
+async def telemetry_enable(request: Request, vin: str):
+    acc = await own_vin(request, vin)
+    if not telemetry.ready():
+        raise HTTPException(409, "Fleet Telemetry is not configured on this server")
+    try:
+        res = await client.telemetry_enable(acc, vin, telemetry.build_config())
+    except TeslaError as e:
+        raise HTTPException(502, f"Tesla refused the configuration: {e}")
+    skipped = [reason for reason, vins in (res.get("skipped_vehicles") or {}).items() if vin in (vins or [])]
+    msg = f"Not applied: {', '.join(skipped)}" if skipped else "Configuration sent. The car adopts it the next time it is online."
+    return RedirectResponse(f"/telemetry/{vin}?" + urlencode({"msg": msg}), 303)
+
+
+@app.post("/telemetry/{vin}/disable")
+async def telemetry_disable(request: Request, vin: str):
+    acc = await own_vin(request, vin)
+    try:
+        await client.telemetry_disable(acc, vin)
+    except TeslaError as e:
+        raise HTTPException(502, f"Tesla refused the request: {e}")
+    return RedirectResponse(f"/telemetry/{vin}?" + urlencode({"msg": "Streaming configuration removed."}), 303)
+
+
 # ---- machine endpoints ---------------------------------------------------
 @app.post("/ingest/telemetry")
 async def ingest(request: Request):
@@ -228,31 +297,13 @@ async def ingest(request: Request):
     """
     if not INGEST_TOKEN or not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {INGEST_TOKEN}"):
         raise HTTPException(401)
-    body = await request.json()
-    n, now, late = 0, int(time.time()), {}
-    for rec in body if isinstance(body, list) else [body]:
-        vin, data = rec.get("vin"), rec.get("data")
-        if not vin or not data:
-            continue
-        if isinstance(data, list):
-            data = {d.get("key"): d.get("value") for d in data if d.get("key")}
-        ts = rec.get("ts")
-        if ts is None and rec.get("createdAt"):
-            ts = datetime.fromisoformat(rec["createdAt"].replace("Z", "+00:00")).timestamp()
-        ts = int(ts or time.time())
-        n += db.insert_telemetry(vin, ts, data)
-        with db.conn() as c:
-            affected = c.execute(
-                "SELECT * FROM assessments WHERE vin=? AND (status='running' OR "
-                "(status='done' AND ? BETWEEN started_at AND ends_at AND ends_at > ?))",
-                (vin, ts, now - cfg.late_telemetry_seconds)).fetchall()
-        for a in affected:
-            runlog.record(a, "telemetry", {"ts": ts, "data": data})
-            if a["status"] == "done":
-                late[a["id"]] = a
-    for a in late.values():          # the car delivered buffered records after the window closed
-        worker.finalize(a)
-    return {"stored": n, "reports_rebuilt": len(late)}
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Body must be JSON")
+    if not isinstance(body, (dict, list)):
+        raise HTTPException(400, "Body must be a record or a list of records")
+    return telemetry.store(body if isinstance(body, list) else [body])
 
 
 @app.get("/.well-known/appspecific/com.tesla.3p.public-key.pem")

@@ -19,6 +19,10 @@ class VehicleUnavailable(Exception):
     """Vehicle asleep/offline (HTTP 408) or we are rate limited (429)."""
 
 
+class TeslaError(Exception):
+    """Tesla refused a request; the message is Tesla's own explanation."""
+
+
 class AuthExpired(Exception):
     """Refresh token no longer valid; the owner must log in again."""
 
@@ -165,6 +169,51 @@ class TeslaClient:
         """Raw answer; pass it through parse_alerts()."""
         base, token = await self.token_for(account_id)
         return await self._get(base, token, f"/api/1/vehicles/{vin}/recent_alerts")
+
+    # ---- Fleet Telemetry ------------------------------------------------
+    async def _call(self, method: str, url: str, token: str, **kw) -> dict:
+        """A request whose refusal the user should read, e.g. "missing_key" or a proxy that is not running."""
+        try:
+            r = await self.http.request(method, url, headers={"Authorization": f"Bearer {token}"}, **kw)
+        except httpx.HTTPError as e:
+            raise TeslaError(f"{url.split('/api/')[0]} could not be reached: {e}") from e
+        if r.status_code == 401:
+            raise AuthExpired(r.text[:200])
+        if r.status_code >= 400:
+            raise TeslaError(f"{r.status_code} {r.text[:400]}")
+        body = r.json()
+        return body.get("response", body) if isinstance(body, dict) else {}
+
+    async def fleet_status(self, account_id: int, vin: str) -> dict:
+        """Whether this application's virtual key is on the car, and the car's firmware."""
+        base, token = await self.token_for(account_id)
+        return await self._call("POST", f"{base}/api/1/vehicles/fleet_status", token, json={"vins": [vin]})
+
+    async def telemetry_config(self, account_id: int, vin: str) -> dict:
+        base, token = await self.token_for(account_id)
+        return await self._call("GET", f"{base}/api/1/vehicles/{vin}/fleet_telemetry_config", token)
+
+    async def telemetry_errors(self, account_id: int, vin: str) -> dict:
+        base, token = await self.token_for(account_id)
+        return await self._call("GET", f"{base}/api/1/vehicles/{vin}/fleet_telemetry_errors", token)
+
+    async def telemetry_enable(self, account_id: int, vin: str, config: dict) -> dict:
+        """Send the streaming configuration through the vehicle-command proxy, which signs it with the app's key."""
+        _, token = await self.token_for(account_id)
+        async with httpx.AsyncClient(timeout=60, verify=cfg.command_proxy_ca or True) as proxy:
+            try:
+                r = await proxy.post(f"{cfg.command_proxy_url.rstrip('/')}/api/1/vehicles/fleet_telemetry_config",
+                                     headers={"Authorization": f"Bearer {token}"}, json={"vins": [vin], "config": config})
+            except httpx.HTTPError as e:
+                raise TeslaError(f"the vehicle-command proxy could not be reached: {e}") from e
+        if r.status_code >= 400:
+            raise TeslaError(f"{r.status_code} {r.text[:400]}")
+        body = r.json()
+        return body.get("response", body) if isinstance(body, dict) else {}
+
+    async def telemetry_disable(self, account_id: int, vin: str) -> dict:
+        base, token = await self.token_for(account_id)
+        return await self._call("DELETE", f"{base}/api/1/vehicles/{vin}/fleet_telemetry_config", token)
 
     async def wake(self, account_id: int, vin: str) -> None:
         base, token = await self.token_for(account_id)
