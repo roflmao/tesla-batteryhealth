@@ -23,7 +23,7 @@ def replay(path: str) -> dict:
     start, recorded = {}, None
     samples: list[soh.Sample] = []
     tele: dict[str, list] = {}
-    alerts: dict[tuple, dict] = {}
+    alerts: list[dict] = []
     for ev in load(path):
         t, kind, d = ev["t"], ev["kind"], ev.get("data")
         if kind == "start":
@@ -40,14 +40,13 @@ def replay(path: str) -> dict:
             for k, v in db.normalize_telemetry(d["data"]).items():
                 tele.setdefault(k, []).append((int(d["ts"]), v))
         elif kind == "alerts":
-            for row in map(worker.alert_row, tesla.parse_alerts(d)):
-                alerts[(row["ts"], row["name"])] = row
+            alerts.extend(map(worker.alert_row, tesla.parse_alerts(d)))
         elif kind == "done":
             recorded = d
     lo, hi = start.get("started_at", 0), (recorded or {}).get("ends_at", float("inf"))
     tele = {k: sorted(x for x in v if lo <= x[0] <= hi) for k, v in tele.items()}
     tele = {k: v for k, v in tele.items() if v}
-    alert_rows = sorted(alerts.values(), key=lambda r: str(r["ts"]), reverse=True)
+    alert_rows = worker.clean_alerts(alerts)
     ref_range, ref_cap = start.get("ref_range_km"), start.get("ref_capacity_kwh")
     if not ref_range:
         raise ValueError(f"{path}: no 'start' event with ref_range_km")

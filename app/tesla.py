@@ -3,6 +3,8 @@ import asyncio
 import base64
 import json
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlencode
 
 import httpx
@@ -37,6 +39,25 @@ def token_subject(tok: dict) -> str | None:
 def parse_alerts(resp) -> list[dict]:
     """The alert list out of a recent_alerts answer, whichever of the two shapes it has."""
     return resp.get("recent_alerts", []) if isinstance(resp, dict) else (resp or [])
+
+
+def alert_time(value) -> str | None:
+    """An alert's time as "YYYY-MM-DD HH:MM UTC", which also sorts chronologically.
+
+    Tesla sends RFC 2822 ("Thu, 26 Nov 2026 16:36:50 +0000"); ISO 8601 is accepted
+    too. Anything else is kept as it came rather than dropped.
+    """
+    if not value:
+        return None
+    for parse in (parsedate_to_datetime, lambda s: datetime.fromisoformat(s.replace("Z", "+00:00"))):
+        try:
+            dt = parse(str(value))
+        except (TypeError, ValueError):
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return str(value)
 
 
 class TeslaClient:

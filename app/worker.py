@@ -10,7 +10,7 @@ import httpx
 
 from . import db, metrics, runlog, soh, vin as vindec
 from .config import cfg
-from .tesla import AuthExpired, VehicleUnavailable, parse_alerts
+from .tesla import AuthExpired, VehicleUnavailable, alert_time, parse_alerts
 
 log = logging.getLogger("batteryhealth.worker")
 
@@ -34,7 +34,7 @@ def build_report(a) -> dict:
     res = soh.compute(samples, a["ref_range_km"], a["ref_capacity_kwh"])
     tele = db.load_telemetry(a["vin"], a["started_at"], a["ends_at"])
     with db.conn() as c:
-        alerts = [dict(r) for r in c.execute("SELECT * FROM alerts WHERE assessment_id=? ORDER BY ts DESC", (a["id"],))]
+        alerts = clean_alerts(dict(r) for r in c.execute("SELECT * FROM alerts WHERE assessment_id=?", (a["id"],)))
         cfg_row = c.execute("SELECT car_type, car_version, trim, wheel_type FROM samples WHERE assessment_id=? "
                             "AND car_type IS NOT NULL ORDER BY ts DESC LIMIT 1", (a["id"],)).fetchone()
     mets, summary = metrics.build(res, tele, alerts, a["ref_range_km"], a["ref_capacity_kwh"])
@@ -63,8 +63,21 @@ def _store(aid: int, state: str, d: dict | None = None) -> None:
         )
 
 
+def clean_alerts(rows) -> list[dict]:
+    """Alert rows with a uniform time, one per (time, name), newest first.
+
+    Times are normalised here as well as on insert because rows stored by an
+    earlier version carry Tesla's raw time text.
+    """
+    seen: dict[tuple, dict] = {}
+    for r in rows:
+        r = {**r, "ts": alert_time(r.get("ts"))}
+        seen.setdefault((r["ts"], r["name"]), r)
+    return sorted(seen.values(), key=lambda r: r["ts"] or "", reverse=True)
+
+
 def alert_row(al: dict) -> dict:
-    return {"ts": al.get("time"), "name": al.get("name", "?"), "audience": ",".join(al.get("audience") or []),
+    return {"ts": alert_time(al.get("time")), "name": al.get("name", "?"), "audience": ",".join(al.get("audience") or []),
             "user_text": al.get("user_text")}
 
 

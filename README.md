@@ -39,6 +39,33 @@ the built-in simulator, not a real car.
 
    ![Assessment list](examples/05-assessments.png)
 
+### Finding the reference values
+
+State of health is measured against the two "when new" values entered at the
+start, so they matter more than anything else on the form.
+
+- **Rated range when new** is what the car's own display showed at 100 % when
+  it was new, for that exact variant and wheel size. It is not necessarily the
+  brochure figure. If you run [TeslaMate](https://github.com/teslamate-org/teslamate),
+  its Battery Health dashboard shows this as "Max range (new)" (use the rated,
+  not the ideal, range). Otherwise use the range registered for the car.
+- **Usable capacity when new** is optional and adds the charge-based estimate.
+  TeslaMate shows it as "Usable (new)". Leave it empty rather than guess: a
+  wrong value produces a second estimate that is off by the same proportion.
+
+The values cannot be changed while an assessment is running. A good sanity
+check for a nearly new car: the report's estimated range at 100 % should be
+within a few percent of the range entered.
+
+### What to do with the car during the window
+
+Nothing is required. The app only reads the car while it is already awake and
+never wakes it, so a car that sleeps all day yields few readings and a
+low-confidence result. Using the car normally is enough. Charging by at least
+20 percentage points, ideally to above 80 %, adds the measured capacity and is
+what makes a high-confidence result possible. Driving adds nothing without
+Fleet Telemetry.
+
 ### How state of health is estimated
 
 Two independent estimates from polling, plus the BMS's own figure when Fleet
@@ -63,6 +90,12 @@ when the car is already online: every 15 min while charging, every 30 min
 otherwise, so at most 96 billable data calls per assessment. It never wakes a
 sleeping car on its own (`BH_ALLOW_WAKE=1` adds an optional single wake at start,
 which needs a scope that permits it).
+
+At Tesla's published rates (500 data requests, 50 wakes or 150,000 telemetry
+signals per USD 1, checked November 2026), one 24-hour assessment costs roughly
+USD 0.10 to 0.45, depending on how much of the day the car is awake or
+charging. Tesla gives each developer account a USD 10 monthly discount. See
+[Tesla's pricing](https://developer.tesla.com/) for current rates.
 
 ## What is measured, and from what
 
@@ -142,24 +175,99 @@ car becomes a regression test. `mock-model3.jsonl` is a run of the simulator.
 
 ## Production setup
 
-1. Create an application at developer.tesla.com (scope `vehicle_device_data`,
-   redirect URI `https://<host>/auth/callback`). Fleet API is pay-per-use.
-2. `python scripts/register_partner.py keygen`, deploy the app with
-   `keys/public-key.pem` mounted at `/srv/keys/public-key.pem`, then
-   `python scripts/register_partner.py register <host>`.
-3. Run the container with the variables in `.env.example`:
+You need a public hostname with HTTPS on port 443. Tesla only accepts `https://`
+redirect URIs for non-local hosts and downloads your public key from
+`https://<host>/.well-known/appspecific/com.tesla.3p.public-key.pem`, so
+`localhost` alone is not enough, even for testing. Running the app on your own
+machine works if that one key file is published on a public domain you control.
 
-       docker run -d --env-file .env -p 8000:8000 \
-         -v batteryhealth-data:/data \
-         -v "$PWD/keys/public-key.pem:/srv/keys/public-key.pem:ro" batteryhealth
+### 1. Create the Tesla application
 
-   One replica only (SQLite + in-process sampler), with a persistent volume on
-   `/data`. The process runs as UID 10001, so a bind mount or Kubernetes volume
-   must be writable by that user (e.g. `fsGroup`/`chown 10001`); a Docker named
-   volume works as is.
-4. Put it behind TLS. `BH_BASIC_AUTH` is a minimal gate; prefer your SSO proxy,
-   but leave `/.well-known/`, `/auth/callback` and `/ingest/` reachable as needed.
-   `GET /healthz` is the liveness/readiness endpoint.
+At [developer.tesla.com](https://developer.tesla.com), create a Fleet API
+application:
+
+| Form field | Value |
+|---|---|
+| OAuth grant type | Authorization Code and Machine-to-Machine |
+| Allowed origin URL | `https://<host>` |
+| Allowed redirect URI | `https://<host>/auth/callback` |
+| Allowed returned URL | leave empty |
+| Scopes | Vehicle Information only (`vehicle_device_data`) |
+| Billing details | optional |
+
+For a local instance, also add `http://localhost:8000` as an origin and
+`http://localhost:8000/auth/callback` as a redirect URI. The form gives you a
+client ID and a client secret.
+
+### 2. Build, configure and run
+
+Keep the configuration and keys outside the checkout, for example in
+`/etc/batteryhealth`:
+
+    docker build -t batteryhealth .
+
+    sudo mkdir -p /etc/batteryhealth/keys
+    sudo docker run --rm --user 0 -v /etc/batteryhealth/keys:/srv/keys batteryhealth \
+      python scripts/register_partner.py keygen
+
+    sudo cp .env.example /etc/batteryhealth/.env     # then fill it in
+    sudo chmod 600 /etc/batteryhealth/.env
+
+    sudo docker run -d --name batteryhealth --restart unless-stopped \
+      --env-file /etc/batteryhealth/.env \
+      -p 127.0.0.1:8080:8000 \
+      -v batteryhealth-data:/data \
+      -v /etc/batteryhealth/keys/public-key.pem:/srv/keys/public-key.pem:ro \
+      batteryhealth
+
+- Write values in the env file without quotes: Docker passes quotes through as
+  part of the value.
+- Docker reads the env file only when the container is created. After editing
+  it, remove and re-create the container (`docker rm -f batteryhealth`, then
+  the `docker run` above); the data volume is kept.
+- One replica only (SQLite + in-process sampler), with a persistent volume on
+  `/data`. The process runs as UID 10001, so a bind mount or Kubernetes volume
+  must be writable by that user (e.g. `fsGroup`/`chown 10001`); a Docker named
+  volume works as is.
+
+### 3. Put it behind TLS
+
+Any reverse proxy with a valid certificate for `<host>` works. With nginx:
+
+    server {
+        listen 443 ssl;
+        server_name <host>;
+        ssl_certificate     /etc/letsencrypt/live/<host>/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/<host>/privkey.pem;
+        location / {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+    }
+
+Check that `curl https://<host>/healthz` answers and that
+`curl https://<host>/.well-known/appspecific/com.tesla.3p.public-key.pem`
+returns the key. `BH_BASIC_AUTH` is a minimal gate in front of the UI; prefer
+your SSO proxy, but leave `/.well-known/`, `/auth/callback` and `/ingest/`
+reachable as needed. `GET /healthz` is the liveness/readiness endpoint.
+
+### 4. Register the domain with Tesla (once)
+
+    sudo docker run --rm --env-file /etc/batteryhealth/.env batteryhealth \
+      python scripts/register_partner.py register <host>
+
+Then open `https://<host>`, sign in with Tesla and start an assessment.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| `register` fails with `unauthorized_client` | The client secret does not match the client ID: truncated copy, stray space, or quotes in the env file. |
+| `register` fails with `client_not_found` | The client ID is wrong, often because of quotes in the env file. |
+| `register` fails with `424 Public key download failed` | Tesla could not fetch the key over HTTPS on port 443: proxy not configured yet, certificate invalid, or the path is blocked. |
+| Tesla's sign-in page says "Client authentication failed" | The running container still has an old client ID; re-create it after editing the env file. |
+| The app exits at startup with `BH_SECRET_KEY must be set` | Set a random value of at least 16 characters. |
 
 ### Configuration
 
@@ -198,11 +306,12 @@ car becomes a regression test. `mock-model3.jsonl` is a run of the simulator.
 
 ## Known gaps
 
-- **Not verified against Tesla.** Everything was exercised against the built-in
-  simulator, not a real car or a real Tesla developer account. Check on first
-  contact with real data: the `recent_alerts` response shape, units of
-  `IsolationResistance` and the temperature signals, and whether `users/region`
-  works with your scopes.
+- **Verified against one real car so far.** Sign-in, partner registration,
+  polling, VIN decoding, the range-based estimate and the alerts list have run
+  against a real Model Y. Not yet exercised with real data: the charge-based
+  estimate, Fleet Telemetry (including units of `IsolationResistance` and the
+  temperature signals), the optional wake-up, and accounts with more than 100
+  vehicles.
 - **Accounts are keyed on the Tesla user id** read from the sign-in's
   `id_token`. If Tesla's token response carries no `id_token`, each sign-in
   becomes a new account and earlier assessments are not listed after signing in

@@ -41,7 +41,9 @@ def register(domain: str) -> None:
         "scope": "openid vehicle_device_data",
         "audience": base,
     })
-    r.raise_for_status()
+    if r.status_code != 200:
+        # Tesla's answer says what is wrong (invalid_client, bad audience, ...); it holds no secrets.
+        sys.exit(f"token request failed: {r.status_code} {r.text}")
     r = httpx.post(f"{base}/api/1/partner_accounts", json={"domain": domain},
                    headers={"Authorization": f"Bearer {r.json()['access_token']}"})
     print(r.status_code, r.text)
