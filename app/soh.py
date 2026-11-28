@@ -92,21 +92,35 @@ def _range_estimates(samples: list[Sample], min_soc: int) -> list[tuple[float, f
 
 
 def _sessions(samples: list[Sample]) -> list[tuple[Sample, Sample]]:
-    """Group consecutive charging samples; a trailing 'Complete' sample closes the session."""
-    sessions, cur = [], []
+    """Group consecutive charging samples; a trailing 'Complete' sample closes the session.
+
+    Takes every sample, including the ones without data. charge_energy_added
+    restarts from zero at each plug-in, so two plug-ins must never be joined:
+    a sample without data (car asleep or unreachable) ends the session, and so
+    does the counter going down.
+    """
+    sessions: list[tuple[Sample, Sample]] = []
+    cur: list[Sample] = []
+
+    def close() -> None:
+        if len(cur) >= 2:
+            sessions.append((cur[0], cur[-1]))
+        cur.clear()
+
     for s in samples:
         if s.battery_level is None or s.charge_energy_added is None:
+            close()
             continue
+        restarted = bool(cur) and s.charge_energy_added < cur[-1].charge_energy_added
         if s.charging_state == "Charging":
+            if restarted:
+                close()
             cur.append(s)
         else:
-            if cur and s.charging_state == "Complete":
+            if cur and s.charging_state == "Complete" and not restarted:
                 cur.append(s)
-            if len(cur) >= 2:
-                sessions.append((cur[0], cur[-1]))
-            cur = []
-    if len(cur) >= 2:
-        sessions.append((cur[0], cur[-1]))
+            close()
+    close()
     return sessions
 
 
@@ -148,7 +162,7 @@ def compute(samples: list[Sample], ref_range_km: float, ref_capacity_kwh: float 
 
     # --- charge method ---
     best = None
-    for a, b in _sessions(online):
+    for a, b in _sessions(samples):
         d_soc = b.battery_level - a.battery_level
         d_e = b.charge_energy_added - a.charge_energy_added
         if d_soc >= min_session_soc and d_e > 0 and (best is None or d_soc > best[0]):

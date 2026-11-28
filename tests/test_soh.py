@@ -48,3 +48,26 @@ def test_short_session_ignored():
 def test_disagreement_flagged():
     r = compute(charge_run(), ref_range_km=300 * KM_PER_MI, ref_capacity_kwh=90)
     assert r.confidence == "low"
+
+
+def _shift(run, dt):
+    return [Sample(**{**s.__dict__, "ts": s.ts + dt}) for s in run]
+
+
+def test_sessions_separated_by_sleep_are_not_joined():
+    # 40 -> 55 %, car sleeps, then a new plug-in 50 -> 80 %. Joined, this would read as
+    # 40 points for the second session's 21 kWh: 52.5 kWh instead of 70.
+    first = charge_run(start=40, end=55)[:-1] + [Sample(ts=2700, battery_level=55, usable_battery_level=55,
+                                                        battery_range_mi=165, charge_energy_added=10.5, charging_state="Charging")]
+    samples = first + [Sample(ts=5000, state="asleep")] + _shift(charge_run(start=50, end=80), 10000)
+    r = compute(samples, ref_range_km=300 * KM_PER_MI, ref_capacity_kwh=70)
+    assert (r.session_soc_from, r.session_soc_to) == (50, 80)
+    assert abs(r.capacity_kwh - 70) < 0.1
+
+
+def test_energy_counter_restart_splits_sessions_without_a_gap():
+    first = [s for s in charge_run(start=40, end=55) if s.charging_state == "Charging"]
+    samples = first + _shift(charge_run(start=50, end=80), 10000)
+    r = compute(samples, ref_range_km=300 * KM_PER_MI, ref_capacity_kwh=70)
+    assert (r.session_soc_from, r.session_soc_to) == (50, 80)
+    assert abs(r.capacity_kwh - 70) < 0.1
